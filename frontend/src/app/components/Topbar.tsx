@@ -4,9 +4,14 @@ import { useState } from "react";
 import { Bell, Search, User } from "lucide-react";
 import SignInModal from "./(modal)/SignInModal";
 import SignUpModal from "./(modal)/SignUpModal";
+import Image from "next/image";
 
 export default function Topbar() {
-  const [user, setUser] = useState(null); // null = chưa đăng nhập
+  const [user, setUser] = useState<null | { 
+    name: string; 
+    email: string; 
+    avatarUrl?: string 
+  }>(null); // null = chưa đăng nhập
   const [showSignIn, setShowSignIn] = useState(false);
   const [showSignUp, setShowSignUp] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
@@ -14,7 +19,16 @@ export default function Topbar() {
   return (
     <header className="fixed top-0 left-0 right-0 h-16 flex items-center justify-between px-6 bg-white dark:bg-gray-900 border-b border-gray-200 z-40">
       {/* Logo */}
-      <div className="text-xl font-bold text-blue-600">MyApp</div>
+      <div className="flex items-center gap-2">
+        <Image 
+          src="/logo.png" 
+          alt="Logo" 
+          width={32} 
+          height={32} 
+          className="h-8 w-8 object-contain" 
+        />
+        <span className="text-xl font-bold text-black">Chat Land</span>
+      </div>
 
       {/* Search + Bell + Avatar */}
       <div className="flex items-center gap-4">
@@ -43,8 +57,14 @@ export default function Topbar() {
             }}
             className="w-9 h-9 rounded-full overflow-hidden border-2 border-gray-300 hover:ring-2 hover:ring-blue-400 transition"
           >
-            {user ? (
-              <img src={user.avatarUrl} alt="avatar" className="w-full h-full object-cover" />
+            {user?.avatarUrl ? (
+              <Image
+                src={user.avatarUrl}
+                alt="avatar"
+                width={36}
+                height={36}
+                className="w-full h-full object-cover"
+              />
             ) : (
               <User className="w-5 h-5 mx-auto my-[7px] text-gray-600" />
             )}
