@@ -2,85 +2,95 @@ import {
   WebSocketGateway,
   WebSocketServer,
   SubscribeMessage,
-  OnGatewayConnection,
-  OnGatewayDisconnect,
-  MessageBody,
   ConnectedSocket,
+  MessageBody,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
+import { ChatService } from './chat.service';
 
 @WebSocketGateway({ cors: { origin: '*' } })
-export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class ChatGateway {
   @WebSocketServer() server: Server;
-  private users = new Map<string, string>(); // userId -> socketId
+  private users = new Map<number, string>(); // userId -> socket.id
 
-  handleConnection(client: Socket) {
-    console.log(`Client connected: ${client.id}`);
-  }
+  constructor(private readonly chatService: ChatService) {}
 
-  handleDisconnect(client: Socket) {
-    for (const [userId, socketId] of this.users.entries()) {
-      if (socketId === client.id) {
-        this.users.delete(userId);
-        console.log(`User ${userId} disconnected`);
-        this.server.emit('userList', Array.from(this.users.keys()));
-        break;
-      }
-    }
-  }
-
+  // Đăng ký socket user
   @SubscribeMessage('register')
   handleRegister(
-    @MessageBody() userId: string,
+    @MessageBody() userId: number,
     @ConnectedSocket() client: Socket,
   ) {
     this.users.set(userId, client.id);
-    console.log(`User ${userId} registered`);
-    this.server.emit('userList', Array.from(this.users.keys()));
+    console.log(`✅ User ${userId} registered`);
   }
 
-  // Gửi tin nhắn riêng
-  @SubscribeMessage('privateMessage')
-  handlePrivateMessage(
-    @MessageBody()
-    payload: {
-      id: string;
-      from: string;
-      to: string;
-      text: string;
-      timestamp: number;
-    },
+  // Lấy lịch sử chat
+  @SubscribeMessage('getHistory')
+  async handleGetHistory(
+    @MessageBody() payload: { userAId: number; userBId: number },
+    @ConnectedSocket() client: Socket,
   ) {
-    const { id, from, to, text, timestamp } = payload;
-    const receiverSocket = this.users.get(to);
+    const conversation = await this.chatService.findOrCreateConversation(
+      payload.userAId,
+      payload.userBId,
+    );
 
-    console.log(`📨 ${from} → ${to}: ${text}`);
+    const messages = await this.chatService.getMessages(conversation.id);
+    client.emit(
+      'chatHistory',
+      messages.map((m) => ({
+        id: m.id.toString(),
+        senderId: m.senderId,
+        content: m.content,
+        createdAt: m.createdAt.getTime(),
+      })),
+    );
+  }
 
-    // Phản hồi lại cho người gửi là "đã gửi"
-    const senderSocket = this.users.get(from);
-    if (senderSocket) {
-      this.server.to(senderSocket).emit('messageStatus', {
-        messageId: id,
+  // Gửi tin nhắn private
+  @SubscribeMessage('privateMessage')
+  async handlePrivateMessage(
+    @MessageBody()
+    data: { clientId: string; from: number; to: number; text: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    try {
+      // 1️⃣ Lưu vào DB
+      const message = await this.chatService.saveMessage(
+        data.from,
+        data.to,
+        data.text,
+      );
+
+      // 2️⃣ Update status 'sent' cho sender
+      client.emit('messageStatus', {
+        messageId: data.clientId,
         status: 'sent',
       });
-    }
 
-    // Gửi cho người nhận nếu đang online
-    if (receiverSocket) {
-      this.server.to(receiverSocket).emit('privateMessage', {
-        id,
-        from,
-        text,
-        timestamp,
-      });
+      // 3️⃣ Gửi message cho receiver nếu online
+      const receiverSocketId = this.users.get(data.to);
+      if (receiverSocketId) {
+        this.server.to(receiverSocketId).emit('privateMessage', {
+          id: message.id.toString(),
+          from: message.senderId,
+          text: message.content,
+          timestamp: message.createdAt.getTime(),
+        });
 
-      // Khi người nhận nhận được tin, báo lại cho người gửi là "đã nhận"
-      if (senderSocket) {
-        this.server.to(senderSocket).emit('messageStatus', {
-          messageId: id,
+        // 4️⃣ Update status 'delivered' cho sender
+        client.emit('messageStatus', {
+          messageId: data.clientId,
           status: 'delivered',
         });
       }
+    } catch (err) {
+      console.error('Error sending message:', err);
+      client.emit('messageStatus', {
+        messageId: data.clientId,
+        status: 'failed',
+      });
     }
   }
 }

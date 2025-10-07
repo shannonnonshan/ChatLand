@@ -1,12 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
-  output   = "../generated/prisma"
 }
 
 datasource db {
@@ -19,13 +12,13 @@ model User {
   name         String
   email        String        @unique
   createdAt    DateTime      @default(now())
-  messages     Message[] // tin nhắn người này gửi
-  participants Participant[] // tham gia các nhóm chat
+  messages     Message[]
+  participants Participant[]
 }
 
 model Conversation {
   id           Int           @id @default(autoincrement())
-  name         String? // group name, null nếu là chat 1-1
+  name         String?
   isGroup      Boolean       @default(false)
   createdAt    DateTime      @default(now())
   messages     Message[]
@@ -41,7 +34,7 @@ model Participant {
   user         User         @relation(fields: [userId], references: [id])
   conversation Conversation @relation(fields: [conversationId], references: [id])
 
-  @@unique([userId, conversationId]) // mỗi user chỉ tham gia 1 lần
+  @@unique([userId, conversationId])
 }
 
 model Message {
