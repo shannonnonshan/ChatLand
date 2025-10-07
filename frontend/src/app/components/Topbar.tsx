@@ -15,7 +15,7 @@ export default function Topbar() {
   const [showSignIn, setShowSignIn] = useState(false);
   const [showSignUp, setShowSignUp] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
-
+  
   return (
     <header className="fixed top-0 left-0 right-0 h-16 flex items-center justify-between px-6 bg-white dark:bg-gray-900 border-b border-gray-200 z-40">
       {/* Logo */}
@@ -99,10 +99,10 @@ export default function Topbar() {
             setShowSignIn(false);
             setShowSignUp(true);
           }}
-          onSignIn={(fakeUser) => {
-            setUser(fakeUser);
-            setShowSignIn(false);
-          }}
+          // onSignIn={(fakeUser: unknown) => {
+          //   setUser(fakeUser);
+          //   setShowSignIn(false);
+          // }}
         />
       )}
       {showSignUp && (

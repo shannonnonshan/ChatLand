@@ -1,6 +1,6 @@
 import React from 'react'
 
-export default function RegisteredPage() {
+export default function NotificationPage() {
   return (
     <div>page</div>
   )
