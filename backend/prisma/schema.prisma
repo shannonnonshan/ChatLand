@@ -8,12 +8,26 @@ datasource db {
 }
 
 model User {
-  id           Int           @id @default(autoincrement())
-  name         String
-  email        String        @unique
-  createdAt    DateTime      @default(now())
+  id        Int      @id @default(autoincrement())
+  name      String
+  password  String
+  email     String   @unique
+  createdAt DateTime @default(now())
+
+  // Chat-related
   messages     Message[]
   participants Participant[]
+
+  // Social features
+  posts        Post[]
+  friendshipsA Friendship[] @relation("friendsA")
+  friendshipsB Friendship[] @relation("friendsB")
+
+  avatar   String?
+  bio      String?
+  role     String?
+  online   Boolean   @default(false)
+  lastSeen DateTime?
 }
 
 model Conversation {
@@ -46,4 +60,29 @@ model Message {
 
   sender       User         @relation(fields: [senderId], references: [id])
   conversation Conversation @relation(fields: [conversationId], references: [id])
+}
+
+// 👇 Added models for social network features
+
+model Post {
+  id          Int      @id @default(autoincrement())
+  description String
+  imageUrl    String?
+  createdAt   DateTime @default(now())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+model Friendship {
+  id        Int      @id @default(autoincrement())
+  userAId   Int
+  userBId   Int
+  createdAt DateTime @default(now())
+
+  userA User @relation("friendsA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB User @relation("friendsB", fields: [userBId], references: [id], onDelete: Cascade)
+
+  @@unique([userAId, userBId])
+  @@index([userAId])
+  @@index([userBId])
 }

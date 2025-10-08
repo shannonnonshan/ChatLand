@@ -4,28 +4,50 @@ import {
   SubscribeMessage,
   ConnectedSocket,
   MessageBody,
+  OnGatewayDisconnect,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { ChatService } from './chat.service';
 
 @WebSocketGateway({ cors: { origin: '*' } })
-export class ChatGateway {
+export class ChatGateway implements OnGatewayDisconnect {
   @WebSocketServer() server: Server;
-  private users = new Map<number, string>(); // userId -> socket.id
+
+  // Map userId -> set of socketIds (hỗ trợ multi-tab / multi-device)
+  private users = new Map<number, Set<string>>();
 
   constructor(private readonly chatService: ChatService) {}
 
-  // Đăng ký socket user
+  /** Đăng ký user socket */
   @SubscribeMessage('register')
   handleRegister(
     @MessageBody() userId: number,
     @ConnectedSocket() client: Socket,
   ) {
-    this.users.set(userId, client.id);
+    if (!userId) return;
+
+    let socketSet = this.users.get(userId);
+    if (!socketSet) {
+      socketSet = new Set<string>();
+      this.users.set(userId, socketSet);
+    }
+    socketSet.add(client.id);
     console.log(`✅ User ${userId} registered`);
   }
 
-  // Lấy lịch sử chat
+  /** Xử lý disconnect */
+  handleDisconnect(client: Socket) {
+    for (const [userId, socketSet] of this.users.entries()) {
+      if (socketSet.has(client.id)) {
+        socketSet.delete(client.id);
+        if (socketSet.size === 0) this.users.delete(userId);
+        console.log(`❌ User ${userId} disconnected`);
+        break;
+      }
+    }
+  }
+
+  /** Lấy lịch sử chat 1-1 */
   @SubscribeMessage('getHistory')
   async handleGetHistory(
     @MessageBody() payload: { userAId: number; userBId: number },
@@ -35,8 +57,8 @@ export class ChatGateway {
       payload.userAId,
       payload.userBId,
     );
-
     const messages = await this.chatService.getMessages(conversation.id);
+
     client.emit(
       'chatHistory',
       messages.map((m) => ({
@@ -48,7 +70,7 @@ export class ChatGateway {
     );
   }
 
-  // Gửi tin nhắn private
+  /** Gửi message private */
   @SubscribeMessage('privateMessage')
   async handlePrivateMessage(
     @MessageBody()
@@ -56,30 +78,32 @@ export class ChatGateway {
     @ConnectedSocket() client: Socket,
   ) {
     try {
-      // 1️⃣ Lưu vào DB
+      // 1️⃣ Lưu message vào DB
       const message = await this.chatService.saveMessage(
         data.from,
         data.to,
         data.text,
       );
 
-      // 2️⃣ Update status 'sent' cho sender
+      // 2️⃣ Gửi status 'sent' cho sender
       client.emit('messageStatus', {
         messageId: data.clientId,
         status: 'sent',
       });
 
-      // 3️⃣ Gửi message cho receiver nếu online
-      const receiverSocketId = this.users.get(data.to);
-      if (receiverSocketId) {
-        this.server.to(receiverSocketId).emit('privateMessage', {
-          id: message.id.toString(),
-          from: message.senderId,
-          text: message.content,
-          timestamp: message.createdAt.getTime(),
-        });
+      // 3️⃣ Gửi message cho tất cả socket online của receiver
+      const sockets = this.users.get(data.to);
+      if (sockets?.size) {
+        for (const sockId of sockets) {
+          this.server.to(sockId).emit('privateMessage', {
+            id: message.id.toString(),
+            from: message.senderId,
+            text: message.content,
+            timestamp: message.createdAt.getTime(),
+          });
+        }
 
-        // 4️⃣ Update status 'delivered' cho sender
+        // 4️⃣ Gửi status 'delivered' cho sender
         client.emit('messageStatus', {
           messageId: data.clientId,
           status: 'delivered',

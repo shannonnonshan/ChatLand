@@ -8,6 +8,7 @@ import Image from "next/image";
 
 export default function Topbar() {
   const [user, setUser] = useState<null | { 
+    id: number;
     name: string; 
     email: string; 
     avatarUrl?: string 
@@ -80,6 +81,8 @@ export default function Topbar() {
               <button
                 onClick={() => {
                   setUser(null);
+                  localStorage.removeItem("token");
+                  localStorage.removeItem("user");
                   setShowMenu(false);
                 }}
                 className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100 dark:hover:bg-gray-700"
@@ -99,8 +102,8 @@ export default function Topbar() {
             setShowSignIn(false);
             setShowSignUp(true);
           }}
-          onSignIn={(fakeUser) => {
-            setUser(fakeUser);
+          onSignIn={(loggedInUser) => {
+            setUser(loggedInUser);
             setShowSignIn(false);
           }}
         />

@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import io, { Socket } from "socket.io-client";
 import { v4 as uuidv4 } from "uuid";
 
 type Message = {
-  id: string;           // clientId hoặc DB id
+  id: string; // clientId hoặc DB id
   fromMe: boolean;
   text: string;
   timestamp: number;
@@ -13,99 +13,84 @@ type Message = {
 };
 
 type Friend = {
-  id: string;           // phải map đúng với userId backend
+  id: string; // phải map đúng với userId backend
   name: string;
   avatar: string;
   online: boolean;
   messages: Message[];
 };
 
-let socket: Socket;
-
 export default function InboxPage() {
-  const [userId] = useState("user1"); // giả lập user hiện tại
-  const [friends, setFriends] = useState<Friend[]>([
-    { id: "user2", name: "Tania", avatar: "https://docs.material-tailwind.com/img/face-1.jpg", online: false, messages: [] },
-    { id: "user3", name: "Alexander", avatar: "https://docs.material-tailwind.com/img/face-2.jpg", online: false, messages: [] },
-  ]);
-
+  const [userId] = useState("1"); // giả lập user hiện tại
+  const [friends, setFriends] = useState<Friend[]>([]);
   const [activeFriend, setActiveFriend] = useState<Friend | null>(null);
   const [input, setInput] = useState("");
+  const socketRef = useRef<Socket | null>(null);
 
+  /** 🌐 Fetch danh sách bạn bè */
   useEffect(() => {
-    socket = io("http://localhost:5000");
+    const fetchFriends = async () => {
+      try {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/friends/${userId}`);
+        const data: Friend[] = await res.json();
+        setFriends(data.map(f => ({ ...f, messages: [] })));
+      } catch (err) {
+        console.error("Fetch friends error:", err);
+      }
+    };
+    fetchFriends();
+  }, [userId]);
+
+  /** 🌐 Kết nối socket */
+  useEffect(() => {
+    const socket = io(`${process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3002"}`);
+    socketRef.current = socket;
 
     socket.on("connect", () => {
       console.log("Connected:", socket.id);
-      socket.emit("register", Number(userId.slice(-1))); // user1 -> 1
+      socket.emit("register", Number(userId));
     });
 
-    // update online status
     socket.on("userList", (userIds: number[]) => {
-      setFriends(prev =>
-        prev.map(f => ({ ...f, online: userIds.includes(Number(f.id.slice(-1))) }))
-      );
+      setFriends(prev => prev.map(f => ({ ...f, online: userIds.includes(Number(f.id)) })));
     });
 
-    // nhận tin nhắn realtime
     socket.on("privateMessage", (m: { id: string; from: string; text: string; timestamp: number }) => {
       setFriends(prev =>
         prev.map(f =>
           f.id === m.from
-            ? {
-                ...f,
-                messages: [
-                  ...f.messages,
-                  { id: m.id, fromMe: false, text: m.text, timestamp: m.timestamp, status: "delivered" },
-                ],
-              }
+            ? { ...f, messages: [...f.messages, { id: m.id, fromMe: false, text: m.text, timestamp: m.timestamp, status: "delivered" }] }
             : f
         )
       );
-
       setActiveFriend(prev =>
         prev && prev.id === m.from
+          ? { ...prev, messages: [...prev.messages, { id: m.id, fromMe: false, text: m.text, timestamp: m.timestamp, status: "delivered" }] }
+          : prev
+      );
+    });
+
+    socket.on("chatHistory", (messages: { id: string | number; senderId: number; content: string; createdAt: string | number }[]) => {
+      setActiveFriend(prev =>
+        prev
           ? {
               ...prev,
-              messages: [
-                ...prev.messages,
-                { id: m.id, fromMe: false, text: m.text, timestamp: m.timestamp, status: "delivered" },
-              ],
+              messages: messages.map(m => ({
+                id: m.id.toString(),
+                fromMe: m.senderId === Number(userId),
+                text: m.content,
+                timestamp: new Date(m.createdAt).getTime(),
+                status: "delivered",
+              })),
             }
           : prev
       );
     });
 
-    // nhận chat history
-    socket.on(
-      "chatHistory",
-      (messages: { id: string | number; senderId: number; content: string; createdAt: string | number }[]) => {
-        setActiveFriend(prev =>
-          prev
-            ? {
-                ...prev,
-                messages: messages.map(m => ({
-                  id: m.id.toString(),
-                  fromMe: m.senderId === Number(userId.slice(-1)),
-                  text: m.content,
-                  timestamp: new Date(m.createdAt).getTime(),
-                  status: "delivered",
-                })),
-              }
-            : prev
-        );
-      }
-    );
-
-    // cập nhật status tin nhắn
     socket.on("messageStatus", ({ messageId, status }: { messageId: string; status: "sending" | "sent" | "delivered" | "failed" }) => {
       setFriends(prev =>
-        prev.map(f => ({
-          ...f,
-          messages: f.messages.map(m => (m.id === messageId ? { ...m, status } : m)),
-        }))
+        prev.map(f => ({ ...f, messages: f.messages.map(m => (m.id === messageId ? { ...m, status } : m)) }))
       );
-
       setActiveFriend(prev =>
         prev ? { ...prev, messages: prev.messages.map(m => (m.id === messageId ? { ...m, status } : m)) } : prev
       );
@@ -116,48 +101,40 @@ export default function InboxPage() {
     };
   }, [userId]);
 
+  /** ✉️ Gửi tin nhắn */
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || !activeFriend) return;
 
     const newMsg: Message = {
-      id: uuidv4(), // dùng để map status từ backend
+      id: uuidv4(),
       fromMe: true,
       text: input,
       timestamp: Date.now(),
       status: "sending",
     };
 
-    // emit message tới server
-    socket.emit("privateMessage", {
+    socketRef.current?.emit("privateMessage", {
       clientId: newMsg.id,
-      from: Number(userId.slice(-1)),
-      to: Number(activeFriend.id.slice(-1)),
+      from: Number(userId),
+      to: Number(activeFriend.id),
       text: input,
     });
 
-    // cập nhật UI ngay
     setFriends(prev =>
-      prev.map(f =>
-        f.id === activeFriend.id ? { ...f, messages: [...f.messages, newMsg] } : f
-      )
+      prev.map(f => (f.id === activeFriend.id ? { ...f, messages: [...f.messages, newMsg] } : f))
     );
-    setActiveFriend(prev =>
-      prev ? { ...prev, messages: [...prev.messages, newMsg] } : prev
-    );
+    setActiveFriend(prev => (prev ? { ...prev, messages: [...prev.messages, newMsg] } : prev));
     setInput("");
   };
 
-  const formatTime = (ts: number) =>
-    new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-
+  /** ⬇️ Mở inbox với bạn bè */
   const openInbox = (friend: Friend) => {
     setActiveFriend(friend);
-    socket.emit("getHistory", {
-      userAId: Number(userId.slice(-1)),
-      userBId: Number(friend.id.slice(-1)),
-    });
+    socketRef.current?.emit("getHistory", { userAId: Number(userId), userBId: Number(friend.id) });
   };
+
+  const formatTime = (ts: number) => new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
   return (
     <div className="flex h-[calc(100vh-4rem)] border rounded-xl bg-white shadow">
@@ -173,11 +150,7 @@ export default function InboxPage() {
             >
               <div className="relative">
                 <img src={f.avatar} className="h-10 w-10 rounded-full object-cover" />
-                <span
-                  className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white ${
-                    f.online ? "bg-green-500" : "bg-gray-400"
-                  }`}
-                />
+                <span className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white ${f.online ? "bg-green-500" : "bg-gray-400"}`} />
               </div>
               <div>
                 <p className="font-medium text-slate-800">{f.name}</p>
@@ -188,44 +161,25 @@ export default function InboxPage() {
         </div>
       </aside>
 
-      {/* Chat box */}
+      {/* Chat Box */}
       <section className="flex-1 flex flex-col">
         {activeFriend ? (
           <>
             <div className="flex items-center gap-3 border-b px-4 py-3">
               <img src={activeFriend.avatar} className="h-8 w-8 rounded-full object-cover" />
               <h3 className="font-semibold text-slate-800">{activeFriend.name}</h3>
-              <span className={`ml-2 h-2.5 w-2.5 rounded-full ${activeFriend.online ? "bg-green-500" : "bg-gray-400"}`}></span>
+              <span className={`ml-2 h-2.5 w-2.5 rounded-full ${activeFriend.online ? "bg-green-500" : "bg-gray-400"}`} />
             </div>
 
             <div className="flex-1 p-4 bg-slate-50 overflow-y-auto space-y-3">
-              {activeFriend.messages.length === 0 && (
-                <p className="text-center text-slate-400 text-sm">No messages yet</p>
-              )}
+              {activeFriend.messages.length === 0 && <p className="text-center text-slate-400 text-sm">No messages yet</p>}
               {activeFriend.messages.map(m => (
                 <div key={m.id} className={`flex w-full ${m.fromMe ? "justify-end" : "justify-start"}`}>
-                  <div
-                    className={`inline-block break-words whitespace-pre-wrap max-w-[40%] rounded-2xl px-3 py-2 text-sm shadow relative ${
-                      m.fromMe ? "bg-blue-500 text-white" : "bg-white text-slate-800"
-                    }`}
-                    style={{ wordBreak: "break-word", overflowWrap: "break-word" }}
-                  >
+                  <div className={`inline-block break-words whitespace-pre-wrap max-w-[40%] rounded-2xl px-3 py-2 text-sm shadow relative ${m.fromMe ? "bg-blue-500 text-white" : "bg-white text-slate-800"}`}>
                     <p className="leading-snug">{m.text}</p>
                     <div className={`flex items-center gap-2 mt-1 text-[10px] ${m.fromMe ? "text-blue-100 justify-end" : "text-slate-400 justify-start"}`}>
                       <span>{formatTime(m.timestamp)}</span>
-                      {m.fromMe && (
-                        <span>
-                          {m.status === "sending"
-                            ? "sending..."
-                            : m.status === "sent"
-                            ? "sent"
-                            : m.status === "delivered"
-                            ? "delivered"
-                            : m.status === "failed"
-                            ? "failed"
-                            : ""}
-                        </span>
-                      )}
+                      {m.fromMe && <span>{m.status}</span>}
                     </div>
                   </div>
                 </div>
@@ -239,9 +193,7 @@ export default function InboxPage() {
                 placeholder="Type a message..."
                 className="flex-1 border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none"
               />
-              <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">
-                Send
-              </button>
+              <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">Send</button>
             </form>
           </>
         ) : (
