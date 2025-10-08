@@ -36,10 +36,11 @@ export class ChatGateway {
       payload.userBId,
     );
 
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     const messages = await this.chatService.getMessages(conversation.id);
     client.emit(
       'chatHistory',
-      messages.map((m) => ({
+      messages.map((m: any) => ({
         id: m.id.toString(),
         senderId: m.senderId,
         content: m.content,
