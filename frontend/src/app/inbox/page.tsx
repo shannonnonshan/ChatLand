@@ -6,6 +6,8 @@ import { v4 as uuidv4 } from "uuid";
 import Image from "next/image";
 import { SendHorizonal } from "lucide-react";
 import AudioRecorder from "../components/AudioRecoder";
+import AudioMessage from "../components/AudioMessage";
+
 type Message = {
   id: string;
   fromMe: boolean;
@@ -46,6 +48,7 @@ export default function InboxPage() {
   const [activeFriend, setActiveFriend] = useState<Friend | null>(null);
   const [input, setInput] = useState("");
 
+  // 🧠 Socket setup
   useEffect(() => {
     socket = io("http://localhost:5000");
 
@@ -169,6 +172,7 @@ export default function InboxPage() {
     };
   }, [userId]);
 
+  // ✉️ Send text
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || !activeFriend) return;
@@ -201,21 +205,8 @@ export default function InboxPage() {
     setInput("");
   };
 
-  const openInbox = (friend: Friend) => {
-    setActiveFriend(friend);
-    socket.emit("getHistory", {
-      userAId: Number(userId.slice(-1)),
-      userBId: Number(friend.id.slice(-1)),
-    });
-  };
-
-  const handleVoiceFinish = ({
-    id,
-    audio,
-  }: {
-    id: string;
-    audio: Blob;
-  }) => {
+  // 🔊 Voice message
+  const handleVoiceFinish = ({ id, audio }: { id: string; audio: Blob }) => {
     if (!activeFriend) return;
 
     const file = new File([audio], "voice-message.webm", { type: "audio/webm" });
@@ -241,11 +232,18 @@ export default function InboxPage() {
       prev ? { ...prev, messages: [...prev.messages, newMsg] } : prev
     );
 
-    // Gửi qua socket.io
     socket.emit("voiceMessage", {
       from: Number(userId.slice(-1)),
       to: Number(activeFriend.id.slice(-1)),
-      blob: audio, // có thể serialize bằng base64 nếu backend yêu cầu
+      blob: audio,
+    });
+  };
+
+  const openInbox = (friend: Friend) => {
+    setActiveFriend(friend);
+    socket.emit("getHistory", {
+      userAId: Number(userId.slice(-1)),
+      userBId: Number(friend.id.slice(-1)),
     });
   };
 
@@ -342,7 +340,7 @@ export default function InboxPage() {
                     }}
                   >
                     {m.audioUrl ? (
-                      <audio controls src={m.audioUrl} className="mt-1" />
+                      <AudioMessage audioUrl={m.audioUrl} />
                     ) : (
                       <p className="leading-snug">{m.text}</p>
                     )}

@@ -1,6 +1,6 @@
 "use client";
 import React from "react";
-
+import { Square, Mic } from "lucide-react";
 interface IProps {
   onFinish: ({ id, audio }: { id: string; audio: Blob }) => void;
 }
@@ -33,7 +33,7 @@ const AudioRecorder: React.FC<IProps> = ({ onFinish }) => {
 
       mediaRecorder.start();
     } catch (err) {
-      console.error("Không thể truy cập micro:", err);
+      console.error("Cannot connect to the micro:", err);
     }
   };
 
@@ -55,7 +55,7 @@ const AudioRecorder: React.FC<IProps> = ({ onFinish }) => {
       }`}
       title={isRecording ? "Stop recording" : "Start recording"}
     >
-      {isRecording ? "⏹️" : "🎙️"}
+      {isRecording ? <Square className="w-5 h-5 text-black" /> : <Mic className="w-5 h-5 text-black" />}
     </button>
   );
 };
