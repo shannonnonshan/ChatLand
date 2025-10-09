@@ -1,120 +1,87 @@
+// chat.gateway.ts
 import {
   WebSocketGateway,
   WebSocketServer,
   SubscribeMessage,
-  ConnectedSocket,
   MessageBody,
-  OnGatewayDisconnect,
+  ConnectedSocket,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { ChatService } from './chat.service';
+import { PrismaService } from '../../prisma/prisma.service';
 
-@WebSocketGateway({ cors: { origin: '*' } })
-export class ChatGateway implements OnGatewayDisconnect {
+@WebSocketGateway(3002, { cors: { origin: '*' } })
+export class ChatGateway {
   @WebSocketServer() server: Server;
+  private onlineUsers = new Map<number, string>(); // userId -> socketId
 
-  // Map userId -> set of socketIds (hỗ trợ multi-tab / multi-device)
-  private users = new Map<number, Set<string>>();
+  constructor(private prisma: PrismaService) {}
 
-  constructor(private readonly chatService: ChatService) {}
-
-  /** Đăng ký user socket */
+  /** Đăng ký user online */
   @SubscribeMessage('register')
   handleRegister(
     @MessageBody() userId: number,
     @ConnectedSocket() client: Socket,
   ) {
-    if (!userId) return;
-
-    let socketSet = this.users.get(userId);
-    if (!socketSet) {
-      socketSet = new Set<string>();
-      this.users.set(userId, socketSet);
-    }
-    socketSet.add(client.id);
-    console.log(`✅ User ${userId} registered`);
+    this.onlineUsers.set(userId, client.id);
+    this.server.emit('userList', Array.from(this.onlineUsers.keys()));
   }
 
-  /** Xử lý disconnect */
-  handleDisconnect(client: Socket) {
-    for (const [userId, socketSet] of this.users.entries()) {
-      if (socketSet.has(client.id)) {
-        socketSet.delete(client.id);
-        if (socketSet.size === 0) this.users.delete(userId);
-        console.log(`❌ User ${userId} disconnected`);
-        break;
-      }
-    }
+  /** Gửi tin nhắn 1-1 */
+  @SubscribeMessage('privateMessage')
+  async handlePrivateMessage(
+    @MessageBody()
+    payload: {
+      clientId: string; // id tạm frontend
+      from: number;
+      to: number;
+      text: string;
+    },
+  ) {
+    const { clientId, from, to, text } = payload;
+
+    // Lưu message
+    const message = await this.prisma.message.create({
+      data: {
+        content: text,
+        senderId: from,
+        receiverId: to,
+        seen: false,
+      },
+    });
+
+    // Gửi cho người nhận nếu online
+    const toSocketId = this.onlineUsers.get(to);
+    if (toSocketId)
+      this.server.to(toSocketId).emit('privateMessage', {
+        id: clientId,
+        from: String(from),
+        text,
+        timestamp: message.createdAt.getTime(),
+      });
+
+    // Gửi trạng thái "sent" cho sender
+    const fromSocketId = this.onlineUsers.get(from);
+    if (fromSocketId)
+      this.server
+        .to(fromSocketId)
+        .emit('messageStatus', { messageId: clientId, status: 'sent' });
   }
 
-  /** Lấy lịch sử chat 1-1 */
+  /** Lấy lịch sử chat giữa 2 người */
   @SubscribeMessage('getHistory')
   async handleGetHistory(
     @MessageBody() payload: { userAId: number; userBId: number },
     @ConnectedSocket() client: Socket,
   ) {
-    const conversation = await this.chatService.findOrCreateConversation(
-      payload.userAId,
-      payload.userBId,
-    );
-    const messages = await this.chatService.getMessages(conversation.id);
-
-    client.emit(
-      'chatHistory',
-      messages.map((m) => ({
-        id: m.id.toString(),
-        senderId: m.senderId,
-        content: m.content,
-        createdAt: m.createdAt.getTime(),
-      })),
-    );
-  }
-
-  /** Gửi message private */
-  @SubscribeMessage('privateMessage')
-  async handlePrivateMessage(
-    @MessageBody()
-    data: { clientId: string; from: number; to: number; text: string },
-    @ConnectedSocket() client: Socket,
-  ) {
-    try {
-      // 1️⃣ Lưu message vào DB
-      const message = await this.chatService.saveMessage(
-        data.from,
-        data.to,
-        data.text,
-      );
-
-      // 2️⃣ Gửi status 'sent' cho sender
-      client.emit('messageStatus', {
-        messageId: data.clientId,
-        status: 'sent',
-      });
-
-      // 3️⃣ Gửi message cho tất cả socket online của receiver
-      const sockets = this.users.get(data.to);
-      if (sockets?.size) {
-        for (const sockId of sockets) {
-          this.server.to(sockId).emit('privateMessage', {
-            id: message.id.toString(),
-            from: message.senderId,
-            text: message.content,
-            timestamp: message.createdAt.getTime(),
-          });
-        }
-
-        // 4️⃣ Gửi status 'delivered' cho sender
-        client.emit('messageStatus', {
-          messageId: data.clientId,
-          status: 'delivered',
-        });
-      }
-    } catch (err) {
-      console.error('Error sending message:', err);
-      client.emit('messageStatus', {
-        messageId: data.clientId,
-        status: 'failed',
-      });
-    }
+    const messages = await this.prisma.message.findMany({
+      where: {
+        OR: [
+          { senderId: payload.userAId, receiverId: payload.userBId },
+          { senderId: payload.userBId, receiverId: payload.userAId },
+        ],
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+    client.emit('chatHistory', messages);
   }
 }

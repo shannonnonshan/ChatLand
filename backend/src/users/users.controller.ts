@@ -7,56 +7,47 @@ import {
   Body,
   Patch,
   Delete,
-  UnauthorizedException,
+  Query,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { UserProfileDto } from './dto/profile.dto';
-// users.service.ts
-import { JwtUserPayload } from './dto/jwt.dto';
+import { SignupDto } from './dto/signup.dto';
+import { LoginDto } from './dto/login.dto';
 
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
+  // Lấy tất cả user
   @Get()
   findAll(): Promise<UserProfileDto[]> {
     return this.usersService.findAll();
   }
 
+  // Lấy 1 user
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number): Promise<UserProfileDto> {
     return this.usersService.findOne(id);
   }
 
-  @Post()
-  create(
-    @Body()
-    body: {
-      name: string;
-      email: string;
-      password: string;
-      avatar?: string;
-      bio?: string;
-    },
-  ) {
-    return this.usersService.create(body);
+  // Đăng ký
+  @Post('signup')
+  async signup(@Body() signupData: SignupDto) {
+    const user = await this.usersService.signup(signupData);
+    return {
+      message: 'Đăng ký thành công',
+      user,
+    };
   }
 
+  // Đăng nhập
   @Post('login')
-  async login(
-    @Body() body: { email: string; password: string },
-  ): Promise<{ user: Omit<JwtUserPayload, 'password'>; token: string }> {
-    const user = await this.usersService.validateUser(
-      body.email,
-      body.password,
-    );
-    if (!user) throw new UnauthorizedException('Invalid credentials');
-
-    const token = await this.usersService.generateJwt(user);
-    console.log('Dang fetch backend voi:', token);
-    return { user, token };
+  async login(@Body() loginData: LoginDto) {
+    const result = await this.usersService.login(loginData);
+    return result;
   }
 
+  // Cập nhật user
   @Patch(':id')
   update(
     @Param('id', ParseIntPipe) id: number,
@@ -72,8 +63,40 @@ export class UsersController {
     return this.usersService.update(id, body);
   }
 
+  // Xoá user
   @Delete(':id')
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.usersService.remove(id);
+  }
+
+  /**
+   * Lấy danh sách friends kèm trạng thái online
+   * query search (tùy chọn)
+   */
+  @Get(':id/friends')
+  async getFriends(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('search') search?: string,
+  ) {
+    if (search) {
+      return this.usersService.searchFriends(id, search);
+    }
+    return this.usersService.getFriendsWithStatus(id);
+  }
+
+  /**
+   * Lấy danh sách conversations 1-1 của user
+   * Trả về mảng:
+   * [
+   *   {
+   *     friend: {id, name, avatar, online},
+   *     messages: [{id, fromMe, text, timestamp, status}],
+   *     lastMessage: {id, fromMe, text, timestamp, status} | undefined
+   *   }
+   * ]
+   */
+  @Get(':id/conversations')
+  async getConversations(@Param('id', ParseIntPipe) id: number) {
+    return this.usersService.getConversations(id);
   }
 }

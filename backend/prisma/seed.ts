@@ -18,9 +18,15 @@ function randomPastDate(daysBack: number) {
 }
 
 async function main() {
+  console.log('🧹 Cleaning old data...');
+  await prisma.message.deleteMany();
+  await prisma.friendship.deleteMany();
+  await prisma.post.deleteMany();
+  await prisma.user.deleteMany();
+
+  console.log('👤 Creating users...');
   const passwordHash = await bcrypt.hash('password123', 10);
 
-  // 1️⃣ Tạo 10 users
   const usersData = Array.from({ length: 10 }).map((_, i) => ({
     name: `User${i + 1}`,
     email: `user${i + 1}@example.com`,
@@ -32,25 +38,24 @@ async function main() {
     lastSeen: randomPastDate(5),
   }));
 
-  const users = [];
-  for (const u of usersData) {
-    const user = await prisma.user.create({ data: u });
-    users.push(user);
-  }
+  const users = await Promise.all(
+    usersData.map((u) => prisma.user.create({ data: u })),
+  );
 
-  // 2️⃣ Tạo full friendships (mọi user kết bạn với nhau)
+  console.log('🤝 Creating friendships...');
   const friendships = [];
   for (let i = 0; i < users.length; i++) {
     for (let j = i + 1; j < users.length; j++) {
       friendships.push({ userAId: users[i].id, userBId: users[j].id });
     }
   }
+
   await prisma.friendship.createMany({
     data: friendships,
     skipDuplicates: true,
   });
 
-  // 3️⃣ Tạo 20 posts ngẫu nhiên
+  console.log('📝 Creating posts...');
   const posts = [];
   for (let i = 0; i < 20; i++) {
     const user = users[randomInt(0, users.length - 1)];
@@ -58,55 +63,40 @@ async function main() {
       description: `Post ${i + 1} by ${user.name}`,
       userId: user.id,
       imageUrl: `https://picsum.photos/200/300?random=${i + 1}`,
+      createdAt: randomPastDate(10),
     });
   }
   await prisma.post.createMany({ data: posts });
 
-  // 4️⃣ Tạo 3 group chat
-  const conversations = [];
-  for (let i = 0; i < 3; i++) {
-    const conv = await prisma.conversation.create({
-      data: { name: `Group Chat ${i + 1}`, isGroup: true },
-    });
-    conversations.push(conv);
-  }
-
-  // 5️⃣ Thêm participants (mọi user tham gia tất cả group chat)
-  const participants = [];
-  for (const conv of conversations) {
-    for (const user of users) {
-      participants.push({ userId: user.id, conversationId: conv.id });
-    }
-  }
-  await prisma.participant.createMany({
-    data: participants,
-    skipDuplicates: true,
-  });
-
-  // 6️⃣ Tạo messages cho từng conversation
+  console.log('✉️ Creating messages (1-1)...');
   const messages = [];
-  for (const conv of conversations) {
-    for (let i = 0; i < 15; i++) {
-      // 15 messages mỗi group
-      const user = users[randomInt(0, users.length - 1)];
-      messages.push({
-        content: `Message ${i + 1} in ${conv.name} by ${user.name}`,
-        senderId: user.id,
-        conversationId: conv.id,
-        createdAt: randomPastDate(3),
-      });
+  for (let i = 0; i < 50; i++) {
+    const sender = users[randomInt(0, users.length - 1)];
+    let receiver = users[randomInt(0, users.length - 1)];
+    while (receiver.id === sender.id) {
+      receiver = users[randomInt(0, users.length - 1)]; // tránh gửi cho chính mình
     }
+
+    messages.push({
+      content: `Hello from ${sender.name} to ${receiver.name} (${i + 1})`,
+      senderId: sender.id,
+      receiverId: receiver.id,
+      createdAt: randomPastDate(7),
+      seen: randomBool(),
+    });
   }
+
   await prisma.message.createMany({ data: messages });
 
-  console.log('✅ Advanced seed created successfully');
+  console.log('✅ Seed completed successfully!');
 }
 
 main()
   .catch((e) => {
-    console.error(e);
+    console.error('❌ Seed failed:', e);
     process.exit(1);
   })
+  // eslint-disable-next-line @typescript-eslint/no-misused-promises
   .finally(async () => {
     await prisma.$disconnect();
   });

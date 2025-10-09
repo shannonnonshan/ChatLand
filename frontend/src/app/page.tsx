@@ -1,101 +1,98 @@
-'use client'
+"use client";
 
-import { useEffect, useState } from 'react'
-import Image from 'next/image'
-import Link from 'next/link'
-import { PhotoIcon, CameraIcon } from '@heroicons/react/24/outline'
-import { useRouter } from 'next/navigation'
-import SignInModal from './components/(modal)/SignInModal'
-import SignUpModal from './components/(modal)/SignUpModal'
+import { useEffect, useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { PhotoIcon, CameraIcon } from "@heroicons/react/24/outline";
+import { useRouter } from "next/navigation";
+import SignInModal from "./components/(modal)/SignInModal";
+import SignUpModal from "./components/(modal)/SignUpModal";
+import { useAuth } from "@/context/AuthContext";
 
 interface Author {
-  id: number
-  name: string
-  avatar?: string
-  isFriend?: boolean
+  id: number;
+  name: string;
+  avatar?: string;
+  isFriend?: boolean;
 }
 
 interface Post {
-  id: number
-  description: string
-  imageUrl?: string
-  createdAt: string
-  user: Author
+  id: number;
+  description: string;
+  imageUrl?: string;
+  createdAt: string;
+  user: Author;
 }
 
 export default function Home() {
-  const [posts, setPosts] = useState<Post[]>([])
-  const [text, setText] = useState('')
-  const [currentUser, setCurrentUser] = useState<{ id: number; name: string } | null>(null)
-  const [showSignIn, setShowSignIn] = useState(false)
-  const [showSignUp, setShowSignUp] = useState(false)
-  const router = useRouter()
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [text, setText] = useState("");
+  const [showSignIn, setShowSignIn] = useState(false);
+  const [showSignUp, setShowSignUp] = useState(false);
+  const router = useRouter();
 
-  // Lấy user đăng nhập từ localStorage
-  useEffect(() => {
-    const userData = localStorage.getItem('user')
-    if (userData) setCurrentUser(JSON.parse(userData))
-  }, [])
+  // ✅ Dùng AuthContext thay vì localStorage
+  const { user: currentUser } = useAuth();
 
   // Fetch posts từ backend
   useEffect(() => {
     const fetchPosts = async () => {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/posts`)
-        if (!res.ok) throw new Error('Failed to fetch posts')
-        const data = await res.json()
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/posts`);
+        if (!res.ok) throw new Error("Failed to fetch posts");
+        const data = await res.json();
         const formatted = data.map((p: Post) => ({
           ...p,
           user: { ...p.user, isFriend: false },
-        }))
-        setPosts(formatted)
+        }));
+        setPosts(formatted);
       } catch (err) {
-        console.error('Error fetching posts:', err)
+        console.error("Error fetching posts:", err);
       }
-    }
-    fetchPosts()
-  }, [])
+    };
+    fetchPosts();
+  }, []);
 
   // Toggle friend
   const toggleFriend = (id: number) => {
-    if (!currentUser) return
+    if (!currentUser) return;
     setPosts((prev) =>
       prev.map((post) =>
         post.id === id
           ? { ...post, user: { ...post.user, isFriend: !post.user.isFriend } }
           : post
       )
-    )
-  }
+    );
+  };
 
-  // Mở modal SignIn nếu chưa login
+  // ✅ Kiểm tra login trước khi thao tác
   const handleRequireLogin = () => {
     if (!currentUser) {
-      setShowSignIn(true)
-      return true
+      setShowSignIn(true);
+      return true;
     }
-    return false
-  }
+    return false;
+  };
 
-  // Tạo bài viết mới
+  // ✅ Đăng bài mới
   const handleCreatePost = async () => {
-    if (handleRequireLogin()) return
-    if (!text.trim()) return alert('Vui lòng nhập nội dung trước khi đăng!')
+    if (handleRequireLogin()) return;
+    if (!text.trim()) return alert("Vui lòng nhập nội dung trước khi đăng!");
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/posts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: currentUser?.id, description: text }),
-      })
-      if (!res.ok) throw new Error('Failed to create post')
-      const newPost = await res.json()
-      setPosts((prev) => [newPost, ...prev])
-      setText('')
+      });
+      if (!res.ok) throw new Error("Failed to create post");
+      const newPost = await res.json();
+      setPosts((prev) => [newPost, ...prev]);
+      setText("");
     } catch (err) {
-      console.error(err)
-      alert('Đăng bài thất bại!')
+      console.error(err);
+      alert("Đăng bài thất bại!");
     }
-  }
+  };
 
   return (
     <>
@@ -104,8 +101,8 @@ export default function Home() {
         <SignInModal
           onClose={() => setShowSignIn(false)}
           onSwitchToSignUp={() => {
-            setShowSignIn(false)
-            setShowSignUp(true)
+            setShowSignIn(false);
+            setShowSignUp(true);
           }}
         />
       )}
@@ -115,8 +112,8 @@ export default function Home() {
         <SignUpModal
           onClose={() => setShowSignUp(false)}
           onSwitchToLogin={() => {
-            setShowSignUp(false)
-            setShowSignIn(true)
+            setShowSignUp(false);
+            setShowSignIn(true);
           }}
         />
       )}
@@ -127,7 +124,7 @@ export default function Home() {
           <div className="bg-white p-4 rounded-lg shadow-sm flex flex-col gap-3">
             <div className="flex items-start gap-3 w-full">
               <Image
-                src="/default-avatar.png"
+                src={currentUser?.avatarUrl || "/default-avatar.png"}
                 alt="Avatar"
                 width={48}
                 height={48}
@@ -137,54 +134,83 @@ export default function Home() {
                 <textarea
                   value={text}
                   maxLength={100}
-                  placeholder="What's on your mind?"
+                  placeholder={
+                    currentUser
+                      ? "What's on your mind?"
+                      : "Đăng nhập để viết bài..."
+                  }
                   onClick={() => handleRequireLogin()}
                   onChange={(e) => setText(e.target.value)}
-                  className="flex-1 rounded-md border border-gray-300 p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
+                  disabled={!currentUser}
+                  className="flex-1 rounded-md border border-gray-300 p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                 />
                 <div className="flex gap-2 ml-2 mt-1">
                   <button
                     onClick={() => {
-                      if (handleRequireLogin()) return
-                      alert('Upload ảnh — đang phát triển')
+                      if (handleRequireLogin()) return;
+                      alert("Upload ảnh — đang phát triển");
                     }}
                     className="w-10 h-10 flex items-center justify-center bg-yellow-200 rounded-lg hover:bg-yellow-300 transition transform hover:scale-110 hover:shadow-md"
+                    disabled={!currentUser}
                   >
                     <PhotoIcon className="h-5 w-5 text-gray-800" />
                   </button>
 
                   <button
                     onClick={() => {
-                      if (handleRequireLogin()) return
-                      router.push('/camera')
+                      if (handleRequireLogin()) return;
+                      router.push("/camera");
                     }}
                     className="w-10 h-10 flex items-center justify-center bg-yellow-200 rounded-lg hover:bg-yellow-300 transition transform hover:scale-110 hover:shadow-md animate-pulse-slow"
+                    disabled={!currentUser}
                   >
                     <CameraIcon className="h-5 w-5 text-gray-800" />
                   </button>
                 </div>
               </div>
             </div>
-            <div className="text-right text-xs text-gray-500">{text.length}/100</div>
+            <div className="text-right text-xs text-gray-500">
+              {text.length}/100
+            </div>
+
+            {currentUser && (
+              <button
+                onClick={handleCreatePost}
+                className="self-end bg-blue-600 text-white px-4 py-1 rounded-md text-sm font-medium hover:bg-blue-700 transition"
+              >
+                Đăng bài
+              </button>
+            )}
           </div>
 
           {/* Posts List */}
           <div className="flex flex-col gap-6">
             {posts.map((post) => (
-              <div key={post.id} className="bg-white p-4 rounded-lg shadow-sm flex flex-col gap-3">
+              <div
+                key={post.id}
+                className="bg-white p-4 rounded-lg shadow-sm flex flex-col gap-3"
+              >
                 <div className="flex justify-between items-center text-xs text-gray-500">
                   <time>{new Date(post.createdAt).toLocaleDateString()}</time>
                 </div>
                 <p className="text-gray-600 text-sm">{post.description}</p>
                 {post.imageUrl && (
                   <div className="mt-2 w-full h-60 relative rounded overflow-hidden">
-                    <Image src={post.imageUrl} alt="Post image" fill className="object-cover rounded" />
+                    <Image
+                      src={post.imageUrl}
+                      alt="Post image"
+                      fill
+                      className="object-cover rounded"
+                    />
                   </div>
                 )}
                 <div className="flex items-center gap-3 mt-2">
-                  <Link href={`/profile/${post.user.id}`} className="flex items-center gap-2">
+                  <Link
+                    href={`/profile/${post.user.id}`}
+                    className="flex items-center gap-2"
+                  >
                     <Image
-                      src={post.user.avatar || '/default-avatar.png'}
+                      src={post.user.avatar || "/default-avatar.png"}
                       alt={post.user.name}
                       width={32}
                       height={32}
@@ -217,8 +243,15 @@ export default function Home() {
 
         <style jsx global>{`
           @keyframes pulse-slow {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.8; transform: scale(1.05); }
+            0%,
+            100% {
+              opacity: 1;
+              transform: scale(1);
+            }
+            50% {
+              opacity: 0.8;
+              transform: scale(1.05);
+            }
           }
           .animate-pulse-slow {
             animation: pulse-slow 2s infinite;
@@ -226,5 +259,5 @@ export default function Home() {
         `}</style>
       </div>
     </>
-  )
+  );
 }

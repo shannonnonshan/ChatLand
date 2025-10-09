@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import { useAuth } from "@/context/AuthContext";
 
 export default function SignInModal({
   onClose,
@@ -12,6 +13,7 @@ export default function SignInModal({
   onSwitchToSignUp: () => void;
   onSignIn?: (user: { id: number; email: string; name?: string; avatarUrl?: string }) => void;
 }) {
+  const { setAuth } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -26,28 +28,26 @@ export default function SignInModal({
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
       const res = await fetch(`${apiUrl}/users/login`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
         body: JSON.stringify({ email, password }),
       });
 
-      const text = await res.text();
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        setError("Server returned invalid response");
-        return;
-      }
+      const data = await res.json();
 
       if (!res.ok) {
         setError(data.message || "Login failed");
-      } else {
-        localStorage.setItem("token", data.token);
-        localStorage.setItem("user", JSON.stringify(data.user));
-
-        onSignIn?.(data.user);
-        onClose();
+        return;
       }
+
+      // ✅ Cập nhật ngay vào AuthContext (và localStorage)
+      setAuth(data.user, data.token);
+
+      // ✅ Gọi callback (nếu có) và đóng modal
+      onSignIn?.(data.user);
+      onClose();
     } catch (err) {
       console.error(err);
       setError("Something went wrong");
@@ -59,6 +59,7 @@ export default function SignInModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="relative w-full max-w-md bg-white rounded-lg shadow dark:border dark:bg-gray-800 dark:border-gray-700">
+        {/* Close Button */}
         <button
           onClick={onClose}
           className="absolute top-3 right-3 text-gray-400 hover:text-gray-600"
@@ -136,16 +137,19 @@ export default function SignInModal({
               />
             </div>
 
+            {/* Error message */}
             {error && <p className="text-sm text-red-500">{error}</p>}
 
+            {/* Submit button */}
             <button
               type="submit"
-              className="w-full text-white bg-[#EC255A] hover:bg-[#d02050] font-medium rounded-lg text-sm px-5 py-2.5 text-center"
+              className="w-full text-white bg-[#EC255A] hover:bg-[#d02050] font-medium rounded-lg text-sm px-5 py-2.5 text-center disabled:opacity-70"
               disabled={loading}
             >
               {loading ? "Signing in..." : "Sign in"}
             </button>
 
+            {/* Switch to Sign Up */}
             <p className="text-sm text-center font-light text-gray-500 dark:text-gray-400">
               Don’t have an account yet?{" "}
               <button

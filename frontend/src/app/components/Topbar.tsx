@@ -5,14 +5,10 @@ import { Bell, Search, User } from "lucide-react";
 import SignInModal from "./(modal)/SignInModal";
 import SignUpModal from "./(modal)/SignUpModal";
 import Image from "next/image";
+import { useAuth } from "@/context/AuthContext";
 
 export default function Topbar() {
-  const [user, setUser] = useState<null | { 
-    id: number;
-    name: string; 
-    email: string; 
-    avatarUrl?: string 
-  }>(null); // null = chưa đăng nhập
+  const { user, logout } = useAuth(); // ✅ dùng context để đồng bộ user toàn app
   const [showSignIn, setShowSignIn] = useState(false);
   const [showSignUp, setShowSignUp] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
@@ -28,7 +24,7 @@ export default function Topbar() {
           height={32} 
           className="h-8 w-8 object-contain" 
         />
-        <span className="text-xl font-bold text-black">Chat Land</span>
+        <span className="text-xl font-bold text-black dark:text-white">Chat Land</span>
       </div>
 
       {/* Search + Bell + Avatar */}
@@ -71,7 +67,7 @@ export default function Topbar() {
             )}
           </button>
 
-          {/* Menu user (nếu đã login) */}
+          {/* User Menu */}
           {user && showMenu && (
             <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 border border-gray-200 rounded-lg shadow-md">
               <div className="p-3 text-sm">
@@ -80,9 +76,7 @@ export default function Topbar() {
               </div>
               <button
                 onClick={() => {
-                  setUser(null);
-                  localStorage.removeItem("token");
-                  localStorage.removeItem("user");
+                  logout();
                   setShowMenu(false);
                 }}
                 className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100 dark:hover:bg-gray-700"
@@ -94,7 +88,7 @@ export default function Topbar() {
         </div>
       </div>
 
-      {/* MODALS */}
+      {/* Modals */}
       {showSignIn && (
         <SignInModal
           onClose={() => setShowSignIn(false)}
@@ -102,12 +96,9 @@ export default function Topbar() {
             setShowSignIn(false);
             setShowSignUp(true);
           }}
-          onSignIn={(loggedInUser) => {
-            setUser(loggedInUser);
-            setShowSignIn(false);
-          }}
         />
       )}
+
       {showSignUp && (
         <SignUpModal
           onClose={() => setShowSignUp(false)}

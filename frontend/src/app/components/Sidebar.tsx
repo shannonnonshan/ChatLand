@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
 import { Home, Users, Mail } from "lucide-react";
 import SignInModal from "./(modal)/SignInModal";
+import { useAuth } from "@/context/AuthContext";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: Home },
@@ -14,21 +15,17 @@ const navItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user } = useAuth(); // ✅ lấy user từ context
   const [showSignIn, setShowSignIn] = useState(false);
-  const [currentUser, setCurrentUser] = useState<{ id: number; name: string } | null>(null);
   const [activeHref, setActiveHref] = useState(pathname);
 
-  useEffect(() => {
-    const userData = localStorage.getItem("user");
-    if (userData) setCurrentUser(JSON.parse(userData));
-  }, []);
-
   const handleRestrictedClick = (href: string) => {
-    if (!currentUser) {
+    if (!user) {
       setShowSignIn(true);
     } else {
       setActiveHref(href);
-      window.location.href = href;
+      router.push(href);
     }
   };
 
@@ -43,8 +40,9 @@ export default function Sidebar() {
           onClose={() => setShowSignIn(false)}
           onSwitchToSignUp={() => {
             setShowSignIn(false);
-            window.location.href = "/signup";
+            router.push("/signup");
           }}
+          onSignIn={() => setShowSignIn(false)} // ✅ đóng modal sau khi login
         />
       )}
 
@@ -52,14 +50,16 @@ export default function Sidebar() {
         {navItems.map((item) => {
           const active = isItemActive(item.href);
 
-          // Nếu item là "Inbox" hoặc "Friends" và chưa login
-          if ((item.label === "Inbox" || item.label === "Friends") && !currentUser) {
+          // Nếu là mục cần đăng nhập
+          if ((item.label === "Inbox" || item.label === "Friends") && !user) {
             return (
               <button
                 key={item.href}
                 onClick={() => handleRestrictedClick(item.href)}
                 className={`relative group p-3 rounded-xl transition-colors ${
-                  active ? "bg-blue-900 text-white" : "text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  active
+                    ? "bg-blue-900 text-white"
+                    : "text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
                 }`}
               >
                 <item.icon className="w-5 h-5" />
@@ -70,13 +70,15 @@ export default function Sidebar() {
             );
           }
 
-          // Link bình thường
+          // Link bình thường (không cần đăng nhập)
           return (
             <Link
               key={item.href}
               href={item.href}
               className={`relative group p-3 rounded-xl transition-colors ${
-                active ? "bg-blue-900 text-white" : "text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
+                active
+                  ? "bg-blue-900 text-white"
+                  : "text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
               }`}
               onClick={() => setActiveHref(item.href)}
             >
