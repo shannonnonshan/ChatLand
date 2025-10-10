@@ -1,3 +1,4 @@
+// prisma.service.ts
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
@@ -18,11 +19,20 @@ export class PrismaService
   }
 
   async onModuleInit() {
-    await this.$connect();
-    console.log('✅ Prisma connected');
+    try {
+      await this.$connect();
+      console.log('✅ Prisma connected to DB');
+    } catch (err) {
+      console.error('❌ Prisma failed to connect:', err);
+    }
   }
 
   async onModuleDestroy() {
-    await this.$disconnect();
+    try {
+      await this.$disconnect();
+      console.log('🛑 Prisma disconnected from DB');
+    } catch (err) {
+      console.error('❌ Prisma failed to disconnect:', err);
+    }
   }
 }

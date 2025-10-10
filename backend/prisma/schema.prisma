@@ -8,42 +8,53 @@ datasource db {
 }
 
 model User {
-  id           Int           @id @default(autoincrement())
-  name         String
-  email        String        @unique
-  createdAt    DateTime      @default(now())
-  messages     Message[]
-  participants Participant[]
-}
-
-model Conversation {
-  id           Int           @id @default(autoincrement())
-  name         String?
-  isGroup      Boolean       @default(false)
-  createdAt    DateTime      @default(now())
-  messages     Message[]
-  participants Participant[]
-}
-
-model Participant {
-  id             Int      @id @default(autoincrement())
-  userId         Int
-  conversationId Int
-  joinedAt       DateTime @default(now())
-
-  user         User         @relation(fields: [userId], references: [id])
-  conversation Conversation @relation(fields: [conversationId], references: [id])
-
-  @@unique([userId, conversationId])
+  id               Int          @id @default(autoincrement())
+  name             String
+  email            String       @unique
+  password         String
+  avatar           String?
+  bio              String?
+  role             String?
+  online           Boolean      @default(false)
+  lastSeen         DateTime?
+  messagesSent     Message[]    @relation("SentMessages")
+  messagesReceived Message[]    @relation("ReceivedMessages")
+  friendshipsA     Friendship[] @relation("friendsA")
+  friendshipsB     Friendship[] @relation("friendsB")
+  posts            Post[]
+  createdAt        DateTime     @default(now())
 }
 
 model Message {
-  id             Int      @id @default(autoincrement())
-  content        String
-  createdAt      DateTime @default(now())
-  senderId       Int
-  conversationId Int
+  id         Int      @id @default(autoincrement())
+  content    String
+  createdAt  DateTime @default(now())
+  seen       Boolean  @default(false)
+  senderId   Int
+  receiverId Int
 
-  sender       User         @relation(fields: [senderId], references: [id])
-  conversation Conversation @relation(fields: [conversationId], references: [id])
+  sender   User @relation("SentMessages", fields: [senderId], references: [id])
+  receiver User @relation("ReceivedMessages", fields: [receiverId], references: [id])
+}
+
+model Friendship {
+  id        Int      @id @default(autoincrement())
+  userAId   Int
+  userBId   Int
+  createdAt DateTime @default(now())
+  userA     User     @relation("friendsA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB     User     @relation("friendsB", fields: [userBId], references: [id], onDelete: Cascade)
+
+  @@unique([userAId, userBId])
+  @@index([userAId])
+  @@index([userBId])
+}
+
+model Post {
+  id          Int      @id @default(autoincrement())
+  description String
+  imageUrl    String?
+  createdAt   DateTime @default(now())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
 }

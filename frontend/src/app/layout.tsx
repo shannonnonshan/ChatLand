@@ -3,7 +3,8 @@ import { Raleway } from "next/font/google";
 import "./globals.css";
 import Sidebar from "./components/Sidebar";
 import Topbar from "./components/Topbar";
-import NoDarkMode from "@/app/components/darkTheme";
+import NoDarkMode from "@/app/components/darkTheme";import { AuthProvider } from "@/context/AuthContext";
+
 const raleway = Raleway({
   variable: "--font-raleway",
   subsets: ["latin"],
@@ -27,11 +28,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${raleway.variable} font-sans antialiased`}>
-        <Topbar />
-        <Sidebar />
-        {/* tránh bị topbar và sidebar đè */}
+        {/* ✅ Đưa AuthProvider ra ngoài để bọc toàn bộ UI */}
+        <AuthProvider>
+          <Topbar />
+          <Sidebar />
         <NoDarkMode />
-        <div className="pt-16 sm:ml-20 p-4">{children}</div>
+          <div className="pt-16 sm:ml-20 p-4">{children}</div>
+        </AuthProvider>
       </body>
     </html>
   );
