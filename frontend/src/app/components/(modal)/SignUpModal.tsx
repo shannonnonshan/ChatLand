@@ -9,21 +9,59 @@ export default function SignUpModal({
   onClose: () => void;
   onSwitchToLogin: () => void;
 }) {
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (password !== confirmPassword) {
-      alert("Passwords do not match!");
+    if (!name.trim()) {
+      setError("Please enter your name.");
       return;
     }
 
-    console.log({ email, password, acceptTerms });
-    onClose();
+    if (password !== confirmPassword) {
+      setError("Passwords do not match!");
+      return;
+    }
+
+    if (!acceptTerms) {
+      setError("Please accept the Terms and Conditions.");
+      return;
+    }
+
+    setError(null);
+    setLoading(true);
+
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/signup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, password }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to sign up");
+      }
+
+      alert("✅ Account created successfully!");
+      onClose();
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("Something went wrong");
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -45,6 +83,27 @@ export default function SignUpModal({
 
           {/* Form */}
           <form className="space-y-4 md:space-y-6" onSubmit={handleSubmit}>
+            {/* Name */}
+            <div>
+              <label
+                htmlFor="name"
+                className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
+              >
+                Your name
+              </label>
+              <input
+                type="text"
+                id="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg 
+                  focus:ring-[#EC255A] focus:border-[#EC255A] block w-full p-2.5 
+                  dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white"
+                placeholder="John Doe"
+                required
+              />
+            </div>
+
             {/* Email */}
             <div>
               <label
@@ -137,12 +196,18 @@ export default function SignUpModal({
               </div>
             </div>
 
+            {/* Error */}
+            {error && (
+              <p className="text-red-500 text-sm font-medium">{error}</p>
+            )}
+
             {/* Submit button */}
             <button
               type="submit"
-              className="w-full text-white bg-[#EC255A] hover:bg-[#d02050] font-medium rounded-lg text-sm px-5 py-2.5 text-center"
+              disabled={loading}
+              className="w-full text-white bg-[#EC255A] hover:bg-[#d02050] font-medium rounded-lg text-sm px-5 py-2.5 text-center disabled:opacity-70"
             >
-              Create an account
+              {loading ? "Creating..." : "Create an account"}
             </button>
 
             {/* Switch to login */}

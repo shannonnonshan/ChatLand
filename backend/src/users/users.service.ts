@@ -1,4 +1,4 @@
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from '../prisma/prisma.service';
 import { UserProfileDto } from './dto/profile.dto';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
@@ -47,7 +47,9 @@ export class UsersService {
 
     return users.map((user) => {
       const friends = [
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-return
         ...user.friendshipsA.map((f) => f.userB),
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-return
         ...user.friendshipsB.map((f) => f.userA),
       ];
       const uniqueFriends = Array.from(
@@ -173,7 +175,7 @@ export class UsersService {
     return friends.map((f) => ({
       id: f.id.toString(),
       name: f.name,
-      avatar: f.avatar || '/default-avatar.png',
+      avatar: f.avatar || '/logo.png',
       online: false,
       messages: [] as Message[],
       lastMessage: undefined,
@@ -195,7 +197,7 @@ export class UsersService {
       data: paginated.map((f) => ({
         id: f.id.toString(),
         name: f.name,
-        avatar: f.avatar || '/default-avatar.png',
+        avatar: f.avatar || '/logo.png',
         online: false,
         messages: [] as Message[],
         lastMessage: undefined,

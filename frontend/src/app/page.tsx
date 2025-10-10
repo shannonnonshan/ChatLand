@@ -124,7 +124,7 @@ export default function Home() {
           <div className="bg-white p-4 rounded-lg shadow-sm flex flex-col gap-3">
             <div className="flex items-start gap-3 w-full">
               <Image
-                src={currentUser?.avatarUrl || "/default-avatar.png"}
+                src={currentUser?.avatarUrl || "/logo.png"}
                 alt="Avatar"
                 width={48}
                 height={48}
@@ -210,7 +210,7 @@ export default function Home() {
                     className="flex items-center gap-2"
                   >
                     <Image
-                      src={post.user.avatar || "/default-avatar.png"}
+                      src={post.user.avatar || "/logo.png"}
                       alt={post.user.name}
                       width={32}
                       height={32}

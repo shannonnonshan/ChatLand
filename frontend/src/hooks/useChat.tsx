@@ -11,6 +11,7 @@ export type Message = {
   text: string;
   timestamp: number;
   status?: "sending" | "sent" | "delivered" | "failed";
+  audioUrl?: string;
 };
 
 export type Friend = {

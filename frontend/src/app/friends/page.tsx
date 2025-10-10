@@ -11,20 +11,20 @@ const users = [
     id: 1,
     name: 'Michael Foster',
     avatar:
-      'https://images.unsplash.com/photo-1519244703995-f4e0f30006d5?ixlib=rb-1.2.1&auto=format&fit=facearea&w=256&h=256&q=80',
+      '/logo.png',
     isFriend: true,
     online: true,
     posts: [
       {
         id: 1,
         description: 'Lovely day for a coffee ☕',
-        imageUrl: 'https://images.unsplash.com/photo-1503602642458-232111445657?auto=format&fit=crop&w=800&q=80',
+        imageUrl: '/logo.png',
         date: 'Sep 10, 2025',
       },
       {
         id: 2,
         description: 'Morning run with the team 🏃‍♂️',
-        imageUrl: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=800&q=80',
+        imageUrl: '/logo.png',
         date: 'Oct 2, 2025',
       },
     ],
@@ -33,14 +33,14 @@ const users = [
     id: 2,
     name: 'Lindsay Walton',
     avatar:
-      'https://images.unsplash.com/photo-1517841905240-472988babdf9?ixlib=rb-1.2.1&auto=format&fit=facearea&w=256&h=256&q=80',
+      '/logo.png',
     isFriend: true,
     online: false,
     posts: [
       {
         id: 1,
         description: 'Chilling at the beach 🌊',
-        imageUrl: 'https://images.unsplash.com/photo-1526481280690-7ead59e4b2bb?auto=format&fit=crop&w=800&q=80',
+        imageUrl: '/logo.png ',
         date: 'Oct 5, 2025',
       },
     ],
@@ -49,14 +49,14 @@ const users = [
     id: 3,
     name: 'Tom Cook',
     avatar:
-      'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&w=256&h=256&q=80',
+      '/logo.png',
     isFriend: false, // không phải bạn
     online: false,
     posts: [
       {
         id: 1,
         description: 'Work hard, chill harder 💼🎉',
-        imageUrl: 'https://images.unsplash.com/photo-1557682224-5b8590cd9ec5?auto=format&fit=crop&w=800&q=80',
+        imageUrl: '/logo.png',
         date: 'Oct 1, 2025',
       },
     ],

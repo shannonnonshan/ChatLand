@@ -79,12 +79,13 @@ export default function SignInModal({
                 type="button"
                 className="flex items-center justify-center gap-2 text-gray-700 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-lg text-sm px-5 py-2.5"
               >
-                <Image
-                  src="https://cdn-icons-png.flaticon.com/128/300/300221.png"
+                {/* <Image
+                  src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/768px-Google_%22G%22_logo.svg.pn"
                   alt="Google"
                   width={20}
                   height={20}
-                />
+
+                /> */}
                 Login with Google
               </button>
 
@@ -92,12 +93,12 @@ export default function SignInModal({
                 type="button"
                 className="flex items-center justify-center gap-2 text-gray-700 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-lg text-sm px-5 py-2.5"
               >
-                <Image
+                {/* <Image
                   src="https://cdn-icons-png.flaticon.com/128/5968/5968764.png"
                   alt="Facebook"
                   width={20}
                   height={20}
-                />
+                /> */}
                 Login with Facebook
               </button>
             </div>

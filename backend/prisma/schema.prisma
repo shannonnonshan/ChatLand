@@ -1,5 +1,7 @@
 generator client {
   provider = "prisma-client-js"
+  output   = "../generated/prisma"
+
 }
 
 datasource db {
@@ -17,12 +19,12 @@ model User {
   role             String?
   online           Boolean      @default(false)
   lastSeen         DateTime?
-  messagesSent     Message[]    @relation("SentMessages")
-  messagesReceived Message[]    @relation("ReceivedMessages")
+  createdAt        DateTime     @default(now())
   friendshipsA     Friendship[] @relation("friendsA")
   friendshipsB     Friendship[] @relation("friendsB")
+  messagesReceived Message[]    @relation("ReceivedMessages")
+  messagesSent     Message[]    @relation("SentMessages")
   posts            Post[]
-  createdAt        DateTime     @default(now())
 }
 
 model Message {
@@ -32,9 +34,8 @@ model Message {
   seen       Boolean  @default(false)
   senderId   Int
   receiverId Int
-
-  sender   User @relation("SentMessages", fields: [senderId], references: [id])
-  receiver User @relation("ReceivedMessages", fields: [receiverId], references: [id])
+  receiver   User     @relation("ReceivedMessages", fields: [receiverId], references: [id])
+  sender     User     @relation("SentMessages", fields: [senderId], references: [id])
 }
 
 model Friendship {

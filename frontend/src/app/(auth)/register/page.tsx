@@ -1,7 +1,0 @@
-import React from 'react'
-
-export default function RegisteredPage() {
-  return (
-    <div>page</div>
-  )
-}

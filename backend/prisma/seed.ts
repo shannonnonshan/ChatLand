@@ -38,15 +38,18 @@ async function main() {
     lastSeen: randomPastDate(5),
   }));
 
-  const users = await Promise.all(
-    usersData.map((u) => prisma.user.create({ data: u })),
-  );
+  const users = await prisma.user.createMany({
+    data: usersData,
+    skipDuplicates: true,
+  });
+
+  const allUsers = await prisma.user.findMany();
 
   console.log('🤝 Creating friendships...');
   const friendships = [];
-  for (let i = 0; i < users.length; i++) {
-    for (let j = i + 1; j < users.length; j++) {
-      friendships.push({ userAId: users[i].id, userBId: users[j].id });
+  for (let i = 0; i < allUsers.length; i++) {
+    for (let j = i + 1; j < allUsers.length; j++) {
+      friendships.push({ userAId: allUsers[i].id, userBId: allUsers[j].id });
     }
   }
 
@@ -58,7 +61,7 @@ async function main() {
   console.log('📝 Creating posts...');
   const posts = [];
   for (let i = 0; i < 20; i++) {
-    const user = users[randomInt(0, users.length - 1)];
+    const user = allUsers[randomInt(0, allUsers.length - 1)];
     posts.push({
       description: `Post ${i + 1} by ${user.name}`,
       userId: user.id,
@@ -66,15 +69,16 @@ async function main() {
       createdAt: randomPastDate(10),
     });
   }
+
   await prisma.post.createMany({ data: posts });
 
   console.log('✉️ Creating messages (1-1)...');
   const messages = [];
   for (let i = 0; i < 50; i++) {
-    const sender = users[randomInt(0, users.length - 1)];
-    let receiver = users[randomInt(0, users.length - 1)];
+    const sender = allUsers[randomInt(0, allUsers.length - 1)];
+    let receiver = allUsers[randomInt(0, allUsers.length - 1)];
     while (receiver.id === sender.id) {
-      receiver = users[randomInt(0, users.length - 1)]; // tránh gửi cho chính mình
+      receiver = allUsers[randomInt(0, allUsers.length - 1)];
     }
 
     messages.push({
@@ -97,6 +101,5 @@ main()
     process.exit(1);
   })
   // eslint-disable-next-line @typescript-eslint/no-misused-promises
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+  .finally(() => prisma.$disconnect());
+

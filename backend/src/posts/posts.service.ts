@@ -4,7 +4,7 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from '../prisma/prisma.service';
 import { CreatePostDto, PostWithUserDto } from './dto/post.dto';
 
 @Injectable()
@@ -18,6 +18,7 @@ export class PostsService {
       orderBy: { createdAt: 'desc' },
     });
 
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return posts.map((p) => ({
       id: p.id,
       description: p.description,

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 export type Message = {
   id: number;
@@ -24,13 +24,15 @@ export class ChatService {
     });
 
     const friends = friendships.map((f) =>
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
       f.userAId === userId ? f.userB : f.userA,
     );
 
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return friends.map((f) => ({
       id: f.id,
       name: f.name,
-      avatar: f.avatar || '/default-avatar.png',
+      avatar: f.avatar || '/logo.png',
       online: false, // frontend sẽ cập nhật realtime
     }));
   }
@@ -53,7 +55,7 @@ export class ChatService {
       fromMe: m.senderId === userId,
       senderId: m.senderId,
       senderName: m.sender.name,
-      senderAvatar: m.sender.avatar || '/default-avatar.png',
+      senderAvatar: m.sender.avatar || '/logo.png',
       content: m.content,
       createdAt: m.createdAt,
       seen: m.seen,
@@ -72,7 +74,7 @@ export class ChatService {
       fromMe: true,
       senderId: message.senderId,
       senderName: message.sender.name,
-      senderAvatar: message.sender.avatar || '/default-avatar.png',
+      senderAvatar: message.sender.avatar || '/logo.png',
       content: message.content,
       createdAt: message.createdAt,
       seen: message.seen,
