@@ -205,6 +205,126 @@ export class UsersService {
     };
   }
 
+
+  // ================== FRIEND REQUESTS ==================
+  async getFriendSuggestions(userId: number, limit = 10) {
+    // Lấy danh sách bạn bè hiện tại
+    const friends = await this.getFriendsByUserId(userId);
+    const friendIds = friends.map((f) => f.id);
+
+    // Lấy danh sách người dùng mà chưa là bạn và chưa gửi/nhận request
+    const suggestions = await this.prisma.user.findMany({
+      where: {
+        id: { not: userId, notIn: friendIds },
+        sentRequests: { none: { receiverId: userId } },
+        receivedRequests: { none: { senderId: userId } },
+      },
+      take: limit,
+      select: { id: true, name: true, avatar: true },
+    });
+
+    return suggestions;
+  }
+
+  // ================== FRIEND REQUESTS ==================
+async sendFriendRequest(senderId: number, receiverId: number) {
+  if (senderId === receiverId)
+    throw new BadRequestException('Không thể gửi lời mời cho chính bạn');
+
+  const existing = await this.prisma.friendRequest.findFirst({
+    where: {
+      OR: [
+        { senderId, receiverId },
+        { senderId: receiverId, receiverId: senderId },
+      ],
+    },
+  });
+  if (existing) throw new BadRequestException('Đã tồn tại yêu cầu kết bạn');
+
+  const request = await this.prisma.friendRequest.create({
+    data: { senderId, receiverId },
+  });
+
+  // Tạo notification với title bắt buộc
+  await this.prisma.notification.create({
+    data: {
+      userId: receiverId,
+      senderId,
+      type: 'FRIEND_REQUEST',
+      title: 'Lời mời kết bạn mới',
+      content: `Bạn nhận được lời mời kết bạn từ người dùng ${senderId}`,
+    },
+  });
+
+  return request;
+}
+async rejectFriendRequest(requestId: number) {
+  await this.prisma.friendRequest.update({
+    where: { id: requestId },
+    data: { status: 'rejected' },
+  });
+  return { message: 'Friend request rejected' };
+}
+async acceptFriendRequest(requestId: number) {
+  const request = await this.prisma.friendRequest.findUnique({
+    where: { id: requestId },
+  });
+  if (!request) throw new NotFoundException('Yêu cầu không tồn tại');
+
+  await this.prisma.friendRequest.update({
+    where: { id: requestId },
+    data: { status: 'accepted' },
+  });
+
+  await this.prisma.friendship.create({
+    data: { userAId: request.senderId, userBId: request.receiverId },
+  });
+
+  // Tạo notifications cho cả sender & receiver
+  await this.prisma.notification.createMany({
+    data: [
+      {
+        userId: request.senderId,
+        type: 'FRIEND_ACCEPTED',
+        title: 'Yêu cầu kết bạn được chấp nhận',
+        content: `Yêu cầu kết bạn của bạn đã được người dùng ${request.receiverId} chấp nhận.`,
+      },
+      {
+        userId: request.receiverId,
+        type: 'NEW_CHAT_READY',
+        title: 'Bạn có thể nhắn tin',
+        content: `Bạn và người dùng ${request.senderId} đã trở thành bạn bè, có thể trò chuyện ngay.`,
+      },
+    ],
+  });
+
+  return { message: 'Đã chấp nhận kết bạn' };
+}
+async getFriendRequests(userId: number) {
+  return this.prisma.friendRequest.findMany({
+    where: { receiverId: userId, status: 'pending' },
+    include: {
+      sender: { select: { id: true, name: true, avatar: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+}
+  // ================== NOTIFICATIONS ==================
+  async getNotifications(userId: number) {
+  return this.prisma.notification.findMany({
+    where: { userId },
+    orderBy: { createdAt: 'desc' },
+    include: {
+      sender: {
+        select: {
+          id: true,
+          name: true,
+          avatar: true,
+        },
+      },
+    },
+  });
+}
   // ================== CONVERSATIONS ==================
   /**
    * Lấy danh sách conversation 1-1 của user hiện tại

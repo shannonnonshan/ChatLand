@@ -13,7 +13,6 @@ import { UsersService } from './users.service';
 import { UserProfileDto } from './dto/profile.dto';
 import { SignupDto } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
-
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
@@ -99,4 +98,35 @@ export class UsersController {
   async getConversations(@Param('id', ParseIntPipe) id: number) {
     return this.usersService.getConversations(id);
   }
+  @Post('friend-request/send')
+  sendRequest(@Body() dto: { senderId: number; receiverId: number }) {
+    return this.usersService.sendFriendRequest(dto.senderId, dto.receiverId);
+  }
+
+  @Post('friend-request')
+  async sendFriendRequest(@Body() body: { senderId: number; receiverId: number }) {
+    return this.usersService.sendFriendRequest(body.senderId, body.receiverId);
+  }
+
+  @Patch('friend-request/:id/accept')
+  async acceptFriendRequest(@Param('id', ParseIntPipe) id: number) {
+    return this.usersService.acceptFriendRequest(id);
+  }
+
+  @Patch('friend-request/:id/reject')
+  async rejectFriendRequest(@Param('id', ParseIntPipe) id: number) {
+    return this.usersService.rejectFriendRequest(id);
+  }
+  @Get(':userId/notifications')
+  getNotifications(@Param('userId') userId: number) {
+    return this.usersService.getNotifications(Number(userId));
+  }
+
+  @Get('friend-suggestions/:userId')
+  async getFriendSuggestions(
+    @Param('userId', ParseIntPipe) userId: number,
+  ) {
+    const limit = 10; // có thể cố định hoặc lấy thêm param khác
+    return this.usersService.getFriendSuggestions(userId, limit);
+  } 
 }

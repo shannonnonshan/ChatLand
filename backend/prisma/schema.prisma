@@ -1,7 +1,5 @@
 generator client {
   provider = "prisma-client-js"
-  output   = "../generated/prisma"
-
 }
 
 datasource db {
@@ -10,21 +8,27 @@ datasource db {
 }
 
 model User {
-  id               Int          @id @default(autoincrement())
+  id               Int             @id @default(autoincrement())
   name             String
-  email            String       @unique
+  email            String          @unique
   password         String
   avatar           String?
   bio              String?
   role             String?
-  online           Boolean      @default(false)
+  online           Boolean         @default(false)
   lastSeen         DateTime?
-  createdAt        DateTime     @default(now())
-  friendshipsA     Friendship[] @relation("friendsA")
-  friendshipsB     Friendship[] @relation("friendsB")
-  messagesReceived Message[]    @relation("ReceivedMessages")
-  messagesSent     Message[]    @relation("SentMessages")
+  createdAt        DateTime        @default(now())
+  receivedRequests FriendRequest[] @relation("ReceivedRequests")
+  sentRequests     FriendRequest[] @relation("SentRequests")
+  friendshipsA     Friendship[]    @relation("friendsA")
+  friendshipsB     Friendship[]    @relation("friendsB")
+  messagesReceived Message[]       @relation("ReceivedMessages")
+  messagesSent     Message[]       @relation("SentMessages")
+  notifications    Notification[]  @relation("UserNotifications")
   posts            Post[]
+
+  // 🔹 Quan hệ tới notifications mà user gửi
+  sentNotifications Notification[] @relation("SentNotifications")
 }
 
 model Message {
@@ -58,4 +62,37 @@ model Post {
   createdAt   DateTime @default(now())
   userId      Int
   user        User     @relation(fields: [userId], references: [id])
+}
+
+model FriendRequest {
+  id         Int      @id @default(autoincrement())
+  senderId   Int
+  receiverId Int
+  status     String   @default("pending")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  receiver   User     @relation("ReceivedRequests", fields: [receiverId], references: [id])
+  sender     User     @relation("SentRequests", fields: [senderId], references: [id])
+
+  @@unique([senderId, receiverId])
+  @@index([senderId])
+  @@index([receiverId])
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  senderId  Int?
+  type      String
+  title     String
+  content   String?
+  link      String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  // 🔹 Quan hệ tới User (người nhận)
+  user      User     @relation("UserNotifications", fields: [userId], references: [id])
+
+  // 🔹 Quan hệ tới User (người gửi)
+  sender    User?    @relation("SentNotifications", fields: [senderId], references: [id])
 }

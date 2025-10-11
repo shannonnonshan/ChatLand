@@ -4,11 +4,17 @@ const withPWA = require("next-pwa")({
   dest: "public", // nơi chứa service-worker.js build ra
   disable: process.env.NODE_ENV !== "production", // ❗ tắt PWA khi dev
 });
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  reactStrictMode: true,
+  images: {
+    domains: ['picsum.photos'], // <--- thêm hostname bạn muốn dùng
+  },
+};
 
 const baseConfig = {
   reactStrictMode: true,
 
-  // ✅ Cấu hình hình ảnh kiểu mới (Next.js 15)
   images: {
     remotePatterns: [
       {
@@ -51,11 +57,5 @@ const baseConfig = {
   },
 };
 
-// ✅ merge đúng cách với next-pwa, không mất config khác
-module.exports = withPWA({
-  ...baseConfig,
-  pwa: {
-    dest: "public",
-    disable: process.env.NODE_ENV !== "production",
-  },
-});
+// ✅ Chỉ merge baseConfig, không thêm pwa nữa
+module.exports = withPWA(baseConfig);

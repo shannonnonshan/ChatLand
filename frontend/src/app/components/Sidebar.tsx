@@ -2,16 +2,10 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
-import { Home, Users, Mail } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Home, Users, Mail, MessageSquareHeart } from "lucide-react";
 import SignInModal from "./(modal)/SignInModal";
 import { useAuth } from "@/context/AuthContext";
-
-const navItems = [
-  { href: "/", label: "Dashboard", icon: Home },
-  { href: "/friends", label: "Friends", icon: Users },
-  { href: "/inbox", label: "Inbox", icon: Mail },
-];
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -19,6 +13,22 @@ export default function Sidebar() {
   const { user } = useAuth(); // ✅ lấy user từ context
   const [showSignIn, setShowSignIn] = useState(false);
   const [activeHref, setActiveHref] = useState(pathname);
+
+  // ✅ sinh navItems động dựa trên user
+  const navItems = useMemo(
+    () => [
+      { href: "/", label: "Dashboard", icon: Home },
+      { href: "/friends", label: "Friends", icon: MessageSquareHeart },
+      { href: "/inbox", label: "Inbox", icon: Mail },
+      // Nếu có user => gắn id vào link
+      {
+        href: user ? `/listfriend/${user.id}` : "/listfriend",
+        label: "List Friends",
+        icon: Users,
+      },
+    ],
+    [user]
+  );
 
   const handleRestrictedClick = (href: string) => {
     if (!user) {
@@ -42,7 +52,7 @@ export default function Sidebar() {
             setShowSignIn(false);
             router.push("/signup");
           }}
-          onSignIn={() => setShowSignIn(false)} // ✅ đóng modal sau khi login
+          onSignIn={() => setShowSignIn(false)}
         />
       )}
 
@@ -70,7 +80,7 @@ export default function Sidebar() {
             );
           }
 
-          // Link bình thường (không cần đăng nhập)
+          // Link bình thường
           return (
             <Link
               key={item.href}

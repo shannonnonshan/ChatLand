@@ -1,82 +1,67 @@
 'use client'
 
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { motion } from 'framer-motion'
 import { UserIcon } from '@heroicons/react/24/outline'
 
-// === Giả lập dữ liệu người dùng và bạn bè ===
-const users = [
-  {
-    id: 1,
-    name: 'Michael Foster',
-    avatar:
-      '/logo.png',
-    isFriend: true,
-    online: true,
-    posts: [
-      {
-        id: 1,
-        description: 'Lovely day for a coffee ☕',
-        imageUrl: '/logo.png',
-        date: 'Sep 10, 2025',
-      },
-      {
-        id: 2,
-        description: 'Morning run with the team 🏃‍♂️',
-        imageUrl: '/logo.png',
-        date: 'Oct 2, 2025',
-      },
-    ],
-  },
-  {
-    id: 2,
-    name: 'Lindsay Walton',
-    avatar:
-      '/logo.png',
-    isFriend: true,
-    online: false,
-    posts: [
-      {
-        id: 1,
-        description: 'Chilling at the beach 🌊',
-        imageUrl: '/logo.png ',
-        date: 'Oct 5, 2025',
-      },
-    ],
-  },
-  {
-    id: 3,
-    name: 'Tom Cook',
-    avatar:
-      '/logo.png',
-    isFriend: false, // không phải bạn
-    online: false,
-    posts: [
-      {
-        id: 1,
-        description: 'Work hard, chill harder 💼🎉',
-        imageUrl: '/logo.png',
-        date: 'Oct 1, 2025',
-      },
-    ],
-  },
-]
+// Kiểu dữ liệu Post từ backend
+interface Post {
+  id: number
+  description: string
+  imageUrl?: string
+  createdAt: string
+  user: {
+    id: number
+    name: string
+    avatar: string
+    online: boolean
+  }
+}
 
 export default function FriendsFeedPage() {
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const userId = Number(searchParams.get('userId')) || 1 // id user đang đăng nhập
+  const [posts, setPosts] = useState<Post[]>([])
+  const [loading, setLoading] = useState(true)
 
-  // Lọc ra bạn bè
-  const friendPosts = users
-    .filter((u) => u.isFriend)
-    .flatMap((friend) =>
-      friend.posts.map((post) => ({
-        ...post,
-        author: { id: friend.id, name: friend.name, avatar: friend.avatar, online: friend.online },
-      }))
-    )
+useEffect(() => {
+  const fetchPosts = async () => {
+    setLoading(true)
+    try {
+      // Lấy userId từ localStorage/session
+      const storedUserId = localStorage.getItem('userId')
+      if (!storedUserId) {
+        console.warn('No userId found in localStorage')
+        setPosts([])
+        return
+      }
+
+      const userId = Number(storedUserId)
+      if (isNaN(userId)) {
+        console.error('Invalid userId in localStorage:', storedUserId)
+        setPosts([])
+        return
+      }
+
+      // Gọi API backend lấy posts của bạn bè
+      const res = await fetch(`/api/posts/friends?userId=${userId}`)
+      if (!res.ok) throw new Error(`Failed to fetch posts: ${res.status}`)
+
+      const data: Post[] = await res.json()
+      setPosts(data)
+    } catch (err) {
+      console.error('Error fetching friend posts:', err)
+      setPosts([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  fetchPosts()
+}, [])
+
+  if (loading) return <div className="text-center py-20">Loading...</div>
 
   return (
     <motion.div
@@ -86,51 +71,47 @@ export default function FriendsFeedPage() {
       className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-16"
     >
       <div className="max-w-4xl mx-auto space-y-8">
-        {/* Header */}
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900">Friends Feed</h1>
           <p className="text-gray-500 text-sm">See what your friends are up to 👋</p>
         </div>
 
-        {/* List bài đăng của bạn bè */}
         <div className="flex flex-col gap-6">
-          {friendPosts.length > 0 ? (
-            friendPosts.map((post) => (
+          {posts.length > 0 ? (
+            posts.map((post) => (
               <motion.div
-                key={post.author.id + '-' + post.id}
+                key={post.id}
                 whileHover={{ scale: 1.01 }}
                 transition={{ type: 'spring', stiffness: 200, damping: 15 }}
                 className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col gap-3"
               >
-                {/* Header user */}
                 <div className="flex items-center gap-3">
                   <div className="relative">
                     <Image
-                      src={post.author.avatar}
-                      alt={post.author.name}
+                      src={post.user.avatar}
+                      alt={post.user.name}
                       width={40}
                       height={40}
                       className="rounded-full"
                     />
                     <span
                       className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
-                        post.author.online ? 'bg-green-400' : 'bg-gray-400'
+                        post.user.online ? 'bg-green-400' : 'bg-gray-400'
                       }`}
                     ></span>
                   </div>
                   <div className="flex flex-col">
-                    <p className="font-semibold text-gray-900 text-sm">{post.author.name}</p>
-                    <time className="text-xs text-gray-500">{post.date}</time>
+                    <p className="font-semibold text-gray-900 text-sm">{post.user.name}</p>
+                    <time className="text-xs text-gray-500">{new Date(post.createdAt).toLocaleDateString()}</time>
                   </div>
                   <button
-                    onClick={() => router.push(`/profile/${post.author.id}`)}
+                    onClick={() => router.push(`/profile/${post.user.id}`)}
                     className="ml-auto text-xs flex items-center gap-1 text-blue-500 hover:underline"
                   >
                     <UserIcon className="w-4 h-4" /> View Profile
                   </button>
                 </div>
 
-                {/* Nội dung */}
                 <p className="text-gray-700 text-sm">{post.description}</p>
                 {post.imageUrl && (
                   <div className="w-full h-60 relative rounded-lg overflow-hidden">

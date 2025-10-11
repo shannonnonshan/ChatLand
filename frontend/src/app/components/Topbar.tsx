@@ -6,13 +6,15 @@ import SignInModal from "./(modal)/SignInModal";
 import SignUpModal from "./(modal)/SignUpModal";
 import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
-
+import { useRouter } from "next/navigation";
 export default function Topbar() {
   const { user, logout } = useAuth(); // ✅ dùng context để đồng bộ user toàn app
   const [showSignIn, setShowSignIn] = useState(false);
   const [showSignUp, setShowSignUp] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
-  
+  const router = useRouter();
+  const { user: currentUser} = useAuth();
+  const userId = currentUser?.id;
   return (
     <header className="fixed top-0 left-0 right-0 h-16 flex items-center justify-between px-6 bg-white dark:bg-gray-900 border-b border-gray-200 z-40">
       {/* Logo */}
@@ -40,7 +42,10 @@ export default function Topbar() {
         </div>
 
         {/* Notification */}
-        <button className="relative p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">
+        <button
+          onClick={() => router.push(`/announcements/${userId}`)}
+          className="relative p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
+        >
           <Bell className="w-5 h-5 text-gray-600" />
           <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full animate-ping" />
         </button>
