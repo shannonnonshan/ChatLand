@@ -19,4 +19,20 @@ model User {
   name      String
   email     String   @unique
   createdAt DateTime @default(now())
+  reports Report[]
+}
+
+model Friendship {
+  id        Int      @id @default(autoincrement())
+  userAId   Int
+  userBId   Int
+  createdAt DateTime @default(now())
+}
+
+model Report {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  reason    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
 }
