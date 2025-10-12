@@ -78,6 +78,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Redirect to home
     router.push("/");
+    router.refresh();
   };
 
   return (

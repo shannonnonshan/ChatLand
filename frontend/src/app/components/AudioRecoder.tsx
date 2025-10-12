@@ -1,47 +1,62 @@
 "use client";
 import React from "react";
 import { Square, Mic } from "lucide-react";
+
 interface IProps {
   onFinish: ({ id, audio }: { id: string; audio: Blob }) => void;
 }
 
 const AudioRecorder: React.FC<IProps> = ({ onFinish }) => {
   const [isRecording, setIsRecording] = React.useState(false);
-  const [stream, setStream] = React.useState<MediaStream | null>(null);
   const [recorder, setRecorder] = React.useState<MediaRecorder | null>(null);
-  const [chunks, setChunks] = React.useState<BlobPart[]>([]);
+  const streamRef = React.useRef<MediaStream | null>(null);
+  const chunksRef = React.useRef<BlobPart[]>([]);
 
   const startRecording = async () => {
     try {
-      const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(audioStream);
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const mimeType =
+      MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : MediaRecorder.isTypeSupported("audio/ogg;codecs=opus")
+        ? "audio/ogg;codecs=opus"
+        : "";
 
-      setStream(audioStream);
-      setRecorder(mediaRecorder);
-      setIsRecording(true);
+      const mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      chunksRef.current = [];
 
-      const localChunks: BlobPart[] = [];
-      mediaRecorder.ondataavailable = (e) => localChunks.push(e.data);
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
 
       mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(localChunks, { type: "audio/webm" });
-        onFinish({ id: audioStream.id, audio: audioBlob });
-        setStream(null);
+        const audioBlob = new Blob(chunksRef.current, { type: "audio/webm" });
+        if (audioBlob.size < 500) {
+          console.warn("⚠️ Âm thanh bị trống hoặc quá ngắn");
+        } else {
+          onFinish({ id: stream.id, audio: audioBlob });
+        }
+
+        stream.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
         setRecorder(null);
-        setChunks([]);
       };
 
       mediaRecorder.start();
+      setRecorder(mediaRecorder);
+      setIsRecording(true);
     } catch (err) {
-      console.error("Cannot connect to the micro:", err);
+      console.error("❌ Không thể truy cập micro:", err);
+      alert("Không thể truy cập micro. Hãy cấp quyền microphone cho trang web.");
     }
   };
 
   const stopRecording = () => {
-    if (!recorder || !stream) return;
-    recorder.stop();
-    stream.getTracks().forEach((t) => t.stop());
-    setIsRecording(false);
+    if (recorder) {
+      recorder.stop();
+      setIsRecording(false);
+    }
   };
 
   return (
@@ -55,7 +70,11 @@ const AudioRecorder: React.FC<IProps> = ({ onFinish }) => {
       }`}
       title={isRecording ? "Stop recording" : "Start recording"}
     >
-      {isRecording ? <Square className="w-5 h-5 text-black" /> : <Mic className="w-5 h-5 text-black" />}
+      {isRecording ? (
+        <Square className="w-5 h-5 text-black" />
+      ) : (
+        <Mic className="w-5 h-5 text-black" />
+      )}
     </button>
   );
 };

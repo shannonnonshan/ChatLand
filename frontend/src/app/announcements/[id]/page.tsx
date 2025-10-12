@@ -2,13 +2,14 @@
 
 import React, { useEffect, useState } from "react";
 import Image from "next/image";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext"; // ✅ dùng context để lấy user
+
 type Notification = {
   id: number;
   userId: number;
   senderId?: number;
-  type: string;
+  type: string; // ví dụ: "FRIEND_REQUEST", "FRIEND_ACCEPTED"
   title: string;
   content?: string;
   link?: string;
@@ -21,11 +22,24 @@ type Notification = {
 };
 
 const NotificationCard: React.FC<{ notification: Notification }> = ({ notification }) => {
-  const { sender, title, content, createdAt } = notification;
+  const { sender, title, content, createdAt, type, userId } = notification;
+  const router = useRouter();
+
+  // ✅ Xử lý khi click thông báo
+  const handleClick = () => {
+    if (type === "FRIEND_REQUEST") {
+      router.push(`/listfriend/${userId}`); // → trang danh sách lời mời
+    } else if (type === "FRIEND_ACCEPTED") {
+      router.push(`/inbox`); // → trang nhắn tin
+    } else if (notification.link) {
+      router.push(notification.link); // fallback nếu có link tuỳ chỉnh
+    }
+  };
 
   return (
     <div
-      className="w-full max-w-md p-4 mb-4 text-gray-900 bg-white rounded-lg shadow-sm dark:bg-gray-800 dark:text-gray-300"
+      onClick={handleClick}
+      className="w-full max-w-md p-4 mb-4 text-gray-900 bg-white rounded-lg shadow-sm dark:bg-gray-800 dark:text-gray-300 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition"
       role="alert"
     >
       <div className="flex items-center mb-3">
@@ -63,7 +77,7 @@ const NotificationCard: React.FC<{ notification: Notification }> = ({ notificati
 
 const NotificationPage: React.FC = () => {
   const { id } = useParams();
-  const { user } = useAuth(); // ✅ lấy user từ AuthContext
+  const { user } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -77,14 +91,14 @@ const NotificationPage: React.FC = () => {
       try {
         const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/${id}/notifications`);
 
-      if (!res.ok) {
-        const errorText = await res.text(); // chỉ đọc khi lỗi
-        console.error("Response Error:", errorText);
-        throw new Error("Failed to fetch notifications");
-      }
+        if (!res.ok) {
+          const errorText = await res.text();
+          console.error("Response Error:", errorText);
+          throw new Error("Failed to fetch notifications");
+        }
 
-      const data = await res.json(); // body chỉ đọc 1 lần, ở đây
-      setNotifications(data);
+        const data = await res.json();
+        setNotifications(data);
       } catch (err) {
         console.error(err);
       } finally {
@@ -96,26 +110,23 @@ const NotificationPage: React.FC = () => {
   }, [user, id]);
 
   return (
-    <>
+    <div className="flex flex-col items-center w-full min-h-screen p-6 bg-gray-50 dark:bg-gray-900">
+      <h1 className="text-2xl font-bold text-center mb-6 text-gray-800 dark:text-gray-100">
+        Notifications
+      </h1>
 
-      <div className="flex flex-col items-center w-full min-h-screen p-6 bg-gray-50 dark:bg-gray-900">
-        <h1 className="text-2xl font-bold text-center mb-6 text-gray-800 dark:text-gray-100">
-          Notifications
-        </h1>
-
-        {loading ? (
-          <p className="text-gray-500 dark:text-gray-400">Loading...</p>
-        ) : !user ? (
-          <p className="text-gray-500 dark:text-gray-400">
-            Please sign in to view notifications.
-          </p>
-        ) : notifications.length > 0 ? (
-          notifications.map((n) => <NotificationCard key={n.id} notification={n} />)
-        ) : (
-          <p className="text-gray-500 dark:text-gray-400">No notifications found.</p>
-        )}
-      </div>
-    </>
+      {loading ? (
+        <p className="text-gray-500 dark:text-gray-400">Loading...</p>
+      ) : !user ? (
+        <p className="text-gray-500 dark:text-gray-400">
+          Please sign in to view notifications.
+        </p>
+      ) : notifications.length > 0 ? (
+        notifications.map((n) => <NotificationCard key={n.id} notification={n} />)
+      ) : (
+        <p className="text-gray-500 dark:text-gray-400">No notifications found.</p>
+      )}
+    </div>
   );
 };
 

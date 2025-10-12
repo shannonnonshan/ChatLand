@@ -9,10 +9,13 @@ export type Message = {
   id: string;
   fromMe: boolean;
   text: string;
+  type: "text" | "audio" | "image";
+  mediaUrl?: string | null;
   timestamp: number;
+  seen: boolean;
   status?: "sending" | "sent" | "delivered" | "failed";
-  audioUrl?: string;
 };
+
 
 export type Friend = {
   id: string;
@@ -26,10 +29,14 @@ export type Friend = {
 type BackendMessage = {
   id: string | number;
   content: string;
+  type: "text" | "audio" | "image";
+  mediaUrl?: string | null;
   senderId: number;
   receiverId: number;
   createdAt: string | number;
+  seen: boolean
 };
+
 
 type Conversation = {
   friend: Friend;
@@ -41,7 +48,12 @@ type UseChatReturn = {
   friends: Friend[];
   activeFriend: Friend | null;
   openChat: (friend: Friend) => void;
-  sendMessage: (friendId: string, text: string) => void;
+  sendMessage: (
+  friendId: string,
+  text: string,
+  type?: "text" | "audio" | "image",
+  mediaUrl?: string | null
+  ) => void;
   resetChat: () => void;
 };
 
@@ -56,13 +68,15 @@ export function useChat(): UseChatReturn {
     id: m.id.toString(),
     fromMe: m.senderId === user?.id,
     text: m.content,
+    type: m.type || "text",
+    mediaUrl: m.mediaUrl,
     timestamp: new Date(m.createdAt).getTime(),
+    seen: m.seen ?? false,
     status: "delivered",
   });
 
-  // Fetch friends + conversations on mount
-  useEffect(() => {
-    if (!user) return;
+    useEffect(() => {
+    if (!user?.id) return; // ✅ đợi user có id thật
 
     const fetchData = async () => {
       try {
@@ -72,10 +86,12 @@ export function useChat(): UseChatReturn {
         const convRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/${user.id}/conversations`);
         const convData: Conversation[] = await convRes.json();
 
-        // Merge conversations into friends
         const merged = friendsData.map(f => {
           const conv = convData.find(c => c.friend.id === f.id);
-          const convMessages = conv?.messages.map(toMessage) || [];
+          const convMessages = conv?.messages.map(m => ({
+            ...toMessage(m), // sử dụng user.id chính xác
+          })) || [];
+
           return {
             ...f,
             messages: convMessages,
@@ -90,7 +106,8 @@ export function useChat(): UseChatReturn {
     };
 
     fetchData();
-  }, [user]);
+  }, [user?.id]); // 👈 thay vì [user]
+
 
   // Setup Socket.IO
   useEffect(() => {
@@ -107,8 +124,18 @@ export function useChat(): UseChatReturn {
       setFriends(prev => prev.map(f => ({ ...f, online: userIds.includes(Number(f.id)) })));
     });
 
-    socket.on("privateMessage", (m: { id: string; from: string; text: string; timestamp: number }) => {
-      const msg: Message = { id: m.id, fromMe: false, text: m.text, timestamp: m.timestamp, status: "delivered" };
+   socket.on("privateMessage", (m: { id: string; from: string; text: string; type?: "text" | "audio" | "image"; mediaUrl?: string | null; timestamp: number;
+    }) => {
+      const msg: Message = { 
+        id: m.id, 
+        fromMe: false, 
+        text: m.text, 
+        type: m.type || "text", 
+        mediaUrl: m.mediaUrl, 
+        timestamp: m.timestamp, 
+        status: "delivered",
+        seen:false
+      };
       setFriends(prev => prev.map(f => f.id === m.from ? { ...f, messages: [...f.messages, msg], lastMessage: msg } : f));
       if (activeFriend?.id === m.from) {
         setActiveFriend(prev => prev ? { ...prev, messages: [...prev.messages, msg], lastMessage: msg } : prev);
@@ -116,6 +143,7 @@ export function useChat(): UseChatReturn {
     });
 
     socket.on("chatHistory", (messages: BackendMessage[]) => {
+      if (!user?.id) return;
       const msgs = messages.map(toMessage).sort((a, b) => a.timestamp - b.timestamp);
       if (activeFriend) {
         setActiveFriend(prev => prev ? { ...prev, messages: msgs, lastMessage: msgs[msgs.length - 1] } : prev);
@@ -136,7 +164,33 @@ export function useChat(): UseChatReturn {
         } : prev);
       }
     });
+    socket.on("messagesSeen", ({ by }: { by: number }) => {
+    setFriends(prev => prev.map(f => 
+      f.id === String(by)
+        ? {
+            ...f,
+            messages: f.messages.map(m =>
+              m.fromMe ? { ...m, seen: true } : m
+            ),
+            lastMessage: f.lastMessage?.fromMe ? { ...f.lastMessage, seen: true } : f.lastMessage,
+          }
+        : f
+    ));
 
+    if (activeFriend?.id === String(by)) {
+      setActiveFriend(prev =>
+        prev ? {
+          ...prev,
+          messages: prev.messages.map(m =>
+            m.fromMe ? { ...m, seen: true } : m
+          ),
+          lastMessage: prev.lastMessage?.fromMe
+            ? { ...prev.lastMessage, seen: true }
+            : prev.lastMessage,
+        } : prev
+      );
+    }
+  });
     // Cleanup function (correct type)
     return () => {
       socket.disconnect();
@@ -148,17 +202,39 @@ export function useChat(): UseChatReturn {
   const openChat = (friend: Friend) => {
     setActiveFriend(friend);
     socketRef.current?.emit("getHistory", { userAId: user?.id, userBId: Number(friend.id) });
+    
   };
 
   // Send message
-  const sendMessage = (friendId: string, text: string) => {
-    if (!user || !socketRef.current) return;
-    const msg: Message = { id: uuidv4(), fromMe: true, text, timestamp: Date.now(), status: "sending" };
-    socketRef.current.emit("privateMessage", { clientId: msg.id, from: user.id, to: Number(friendId), text });
+  const sendMessage = (
+      friendId: string, 
+      text: string, 
+      type: "text" | "audio" | "image" = "text", 
+      mediaUrl?: string | null
+    ) => {
+      if (!user || !socketRef.current) return;
+      const msg: Message = { 
+        id: uuidv4(), 
+        fromMe: true, 
+        text, 
+        type, 
+        mediaUrl, 
+        timestamp: Date.now(), 
+        status: "sending",
+        seen:false
+      };
+      socketRef.current.emit("privateMessage", { 
+        clientId: msg.id, 
+        from: user.id, 
+        to: Number(friendId), 
+        text, 
+        type, 
+        mediaUrl 
+      });
+      setFriends(prev => prev.map(f => f.id === friendId ? { ...f, messages: [...f.messages, msg], lastMessage: msg } : f));
+      if (activeFriend?.id === friendId) setActiveFriend(prev => prev ? { ...prev, messages: [...prev.messages, msg], lastMessage: msg } : prev);
+    };
 
-    setFriends(prev => prev.map(f => f.id === friendId ? { ...f, messages: [...f.messages, msg], lastMessage: msg } : f));
-    if (activeFriend?.id === friendId) setActiveFriend(prev => prev ? { ...prev, messages: [...prev.messages, msg], lastMessage: msg } : prev);
-  };
 
   // Reset chat (logout)
   const resetChat = () => {

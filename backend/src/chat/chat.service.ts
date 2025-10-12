@@ -8,9 +8,12 @@ export type Message = {
   senderName: string;
   senderAvatar: string;
   content: string;
+  type: 'text' | 'audio' | 'image';
+  mediaUrl?: string | null;
   createdAt: Date;
   seen: boolean;
 };
+
 
 @Injectable()
 export class ChatService {
@@ -57,15 +60,31 @@ export class ChatService {
       senderName: m.sender.name,
       senderAvatar: m.sender.avatar || '/logo.png',
       content: m.content,
+      type: m.type as 'text' | 'audio' | 'image',
+      mediaUrl: m.mediaUrl,
       createdAt: m.createdAt,
       seen: m.seen,
     }));
+
   }
 
   /** Gửi tin nhắn 1-1 */
-  async sendMessage(from: number, to: number, text: string): Promise<Message> {
+ async sendMessage(
+  from: number,
+  to: number,
+  text: string,
+  type: 'text' | 'audio' | 'image' = 'text',
+  mediaUrl?: string | null,
+  ): Promise<Message> {
     const message = await this.prisma.message.create({
-      data: { content: text, senderId: from, receiverId: to, seen: false },
+      data: {
+        type,
+        content: text,
+        mediaUrl,
+        senderId: from,
+        receiverId: to,
+        seen: false,
+      },
       include: { sender: true },
     });
 
@@ -76,10 +95,13 @@ export class ChatService {
       senderName: message.sender.name,
       senderAvatar: message.sender.avatar || '/logo.png',
       content: message.content,
+      type: message.type as 'text' | 'audio' | 'image',
+      mediaUrl: message.mediaUrl,
       createdAt: message.createdAt,
       seen: message.seen,
     };
   }
+
 
   /** Đánh dấu tin nhắn đã xem */
   async markMessagesAsSeen(userId: number, friendId: number) {

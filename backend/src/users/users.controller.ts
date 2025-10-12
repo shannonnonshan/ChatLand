@@ -72,15 +72,15 @@ export class UsersController {
    * Lấy danh sách friends kèm trạng thái online
    * query search (tùy chọn)
    */
-  @Get(':id/friends')
+  @Get(':userId/friends')
   async getFriends(
-    @Param('id', ParseIntPipe) id: number,
+    @Param('userId', ParseIntPipe) userId: number,
     @Query('search') search?: string,
   ) {
     if (search) {
-      return this.usersService.searchFriends(id, search);
+      return this.usersService.searchFriends(userId, search);
     }
-    return this.usersService.getFriendsWithStatus(id);
+    return this.usersService.getFriendsWithStatus(userId);
   }
 
   /**
@@ -102,10 +102,14 @@ export class UsersController {
   sendRequest(@Body() dto: { senderId: number; receiverId: number }) {
     return this.usersService.sendFriendRequest(dto.senderId, dto.receiverId);
   }
+  @Post('friend-request/cancel')
+  cancelRequest(@Body() dto: { senderId: number; receiverId: number }) {
+    return this.usersService.cancelFriendRequest(dto.senderId, dto.receiverId);
+  }
 
-  @Post('friend-request')
-  async sendFriendRequest(@Body() body: { senderId: number; receiverId: number }) {
-    return this.usersService.sendFriendRequest(body.senderId, body.receiverId);
+  @Get('friend-requests/:userId')
+  async getFriendRequests(@Param('userId', ParseIntPipe) userId: number) {
+    return this.usersService.getFriendRequests(userId);
   }
 
   @Patch('friend-request/:id/accept')

@@ -9,88 +9,99 @@ interface AudioMessageProps {
 const AudioMessage: React.FC<AudioMessageProps> = ({ audioUrl }) => {
   const [isPlaying, setIsPlaying] = React.useState(false);
   const [duration, setDuration] = React.useState(0);
-  const [progress, setProgress] = React.useState(0);
+  const [currentTime, setCurrentTime] = React.useState(0);
   const [isConverting, setIsConverting] = React.useState(false);
   const [transcribedText, setTranscribedText] = React.useState<string | null>(null);
   const [summary, setSummary] = React.useState<string | null>(null);
-  const [language, setLanguage] = React.useState<string>("auto");
 
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
 
-  const togglePlay = () => {
+  // 🔊 Play / Pause
+  const togglePlay = async () => {
     const audio = audioRef.current;
     if (!audio) return;
-    if (isPlaying) audio.pause();
-    else audio.play();
-    setIsPlaying(!isPlaying);
+
+    if (isPlaying) {
+      audio.pause();
+      setIsPlaying(false);
+    } else {
+      try {
+        await audio.play();
+        setIsPlaying(true);
+      } catch (err) {
+        console.error("Playback failed:", err);
+        alert("⚠️ Không thể phát âm thanh. Có thể file bị lỗi hoặc định dạng không đúng.");
+      }
+    }
   };
 
+  // 🎵 Update progress bar
   const handleTimeUpdate = () => {
     const audio = audioRef.current;
-    if (!audio) return;
-    setProgress((audio.currentTime / audio.duration) * 100);
+    if (audio) setCurrentTime(audio.currentTime);
   };
 
+  // ⏱️ When loaded
   const handleLoaded = () => {
     const audio = audioRef.current;
-    if (audio) setDuration(Math.floor(audio.duration));
+    if (audio) setDuration(audio.duration || 0);
   };
 
+  // 🧭 Seek manually
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const audio = audioRef.current;
-    if (!audio) return;
-    const newTime = (Number(e.target.value) / 100) * audio.duration;
+    if (!audio || !duration) return;
+    const newTime = (Number(e.target.value) / 100) * duration;
     audio.currentTime = newTime;
-    setProgress(Number(e.target.value));
+    setCurrentTime(newTime);
   };
 
-  const formatTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60).toString().padStart(2, "0");
-    const s = Math.floor(seconds % 60).toString().padStart(2, "0");
-    return `${m}:${s}`;
+  const formatTime = (s: number) => {
+    if (!s) return "00:00";
+    const m = Math.floor(s / 60)
+      .toString()
+      .padStart(2, "0");
+    const sec = Math.floor(s % 60)
+      .toString()
+      .padStart(2, "0");
+    return `${m}:${sec}`;
   };
 
-  // ⚙️ detect model automatically (English vs Vietnamese)
-  const detectModelPath = (textGuess: string | null): string => {
-    if (!textGuess) return "vosk-model-small-en-us"; // default EN
-    const vnRegex = /[àáạảãăắằẵẳặâầấậẩẫđèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹ]/i;
-    return vnRegex.test(textGuess) ? "vosk-model-small-vn" : "vosk-model-small-en-us";
-  };
-
-  // 🧠 convert voice → text
+  // 🧠 Convert voice → text
   const handleConvertToText = async () => {
-  try {
-    setIsConverting(true);
-    setSummary(null);
+    try {
+      setIsConverting(true);
+      setTranscribedText(null);
+      setSummary(null);
 
-    const res = await fetch(audioUrl);
-    const blob = await res.blob();
-    const formData = new FormData();
-    formData.append("file", blob, "audio.wav");
+      const res = await fetch(audioUrl);
+      const blob = await res.blob();
+      const formData = new FormData();
+      formData.append("file", blob, "voice-message.wav");
 
-    const response = await fetch("http://localhost:3001/voice-to-text", {
-      method: "POST",
-      body: formData,
-    });
+      const response = await fetch("http://localhost:3001/voice-to-text", {
+        method: "POST",
+        body: formData,
+      });
 
-    const data = await response.json();
-    if (data.text) {
-      setTranscribedText(data.text);
-      setSummary(data.summary);
-    } else {
-      alert("❌ Không thể nhận dạng hoặc tóm tắt âm thanh.");
+      const data = await response.json();
+      if (data.text) {
+        setTranscribedText(data.text);
+        setSummary(data.summary || null);
+      } else {
+        alert("❌ Không thể nhận dạng âm thanh.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("❌ Lỗi khi chuyển giọng nói thành văn bản.");
+    } finally {
+      setIsConverting(false);
     }
-  } catch (err) {
-    console.error(err);
-    alert("❌ Lỗi xử lý âm thanh.");
-  } finally {
-    setIsConverting(false);
-  }
-};
+  };
 
   return (
     <div className="flex flex-col gap-2 p-2 rounded-2xl bg-blue-50 border border-blue-100 w-full max-w-[280px] shadow-sm">
-      {/* Custom audio player */}
+      {/* Player row */}
       <div className="flex items-center gap-3 w-full">
         <button
           onClick={togglePlay}
@@ -104,11 +115,13 @@ const AudioMessage: React.FC<AudioMessageProps> = ({ audioUrl }) => {
             type="range"
             min="0"
             max="100"
-            value={progress}
+            value={duration ? (currentTime / duration) * 100 : 0}
             onChange={handleSeek}
             className="w-full accent-blue-500 cursor-pointer"
           />
-          <span className="text-xs text-gray-500 text-right">{formatTime(duration)}</span>
+          <span className="text-xs text-gray-500 text-right">
+            {formatTime(currentTime)} / {formatTime(duration)}
+          </span>
         </div>
 
         <button
@@ -133,13 +146,13 @@ const AudioMessage: React.FC<AudioMessageProps> = ({ audioUrl }) => {
       </div>
 
       {transcribedText && (
-        <p className="text-sm text-gray-700 bg-white border rounded-lg p-2">
+        <p className="text-sm text-gray-700 bg-white border rounded-lg p-2 whitespace-pre-wrap">
           🗣️ {transcribedText}
         </p>
       )}
 
       {summary && (
-        <p className="text-sm text-blue-700 bg-blue-100 border rounded-lg p-2">
+        <p className="text-sm text-blue-700 bg-blue-100 border rounded-lg p-2 whitespace-pre-wrap">
           💡 {summary}
         </p>
       )}

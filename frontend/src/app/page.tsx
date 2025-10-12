@@ -14,6 +14,7 @@ interface Author {
   name: string;
   avatar?: string;
   isFriend?: boolean;
+  requestSent?: boolean;
 }
 
 interface Post {
@@ -97,21 +98,39 @@ useEffect(() => {
 
 
   // ---------------- Add Friend ----------------
-  const handleAddFriend = async (friendId: number) => {
-    if (handleRequireLogin()) return;
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/friend-request/send`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ senderId: currentUser?.id, receiverId: friendId }),
-      });
-      if (!res.ok) throw new Error("Failed to send friend request");
-      setFriendSuggestions((prev) => prev.filter((f) => f.id !== friendId));
-    } catch (err) {
-      console.error(err);
-      alert("Failed to send friend request!");
+  const handleFriendAction = async (friendId: number, alreadySent: boolean) => {
+  if (handleRequireLogin()) return;
+
+  try {
+    const endpoint = alreadySent
+      ? `${process.env.NEXT_PUBLIC_API_URL}/users/friend-request/cancel`
+      : `${process.env.NEXT_PUBLIC_API_URL}/users/friend-request/send`;
+
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        senderId: currentUser?.id,
+        receiverId: friendId,
+      }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(errText);
     }
-  };
+
+    // ✅ Cập nhật UI sau khi gửi hoặc hủy
+    setFriendSuggestions((prev) =>
+      prev.map((f) =>
+        f.id === friendId ? { ...f, requestSent: !alreadySent } : f
+      )
+    );
+  } catch (err) {
+    console.error("Error handling friend request:", err);
+    alert(alreadySent ? "Failed to cancel request!" : "Failed to send friend request!");
+  }
+};
 
   // ---------------- Toggle Friend (UI Only) ----------------
   const toggleFriend = (postId: number) => {
@@ -208,7 +227,9 @@ useEffect(() => {
           <div className="mt-6">
             <h2 className="text-gray-700 font-semibold mb-2 text-sm">Friend Suggestions</h2>
             <div className="flex overflow-x-auto gap-4 py-2">
-              {friendSuggestions.length === 0 && <span className="text-gray-400 text-xs">No suggestions available</span>}
+              {friendSuggestions.length === 0 && (
+                <span className="text-gray-400 text-xs">No suggestions available</span>
+              )}
               {friendSuggestions.map((friend) => (
                 <div
                   key={friend.id}
@@ -222,11 +243,17 @@ useEffect(() => {
                     className="rounded-full"
                   />
                   <p className="text-sm font-medium text-gray-900 text-center">{friend.name}</p>
+                  
+                  {/* Nếu đã gửi request thì hiển thị nút Cancel Request, nếu chưa gửi thì vẫn Add Friend */}
                   <button
-                    onClick={() => handleAddFriend(friend.id)}
-                    className="mt-1 w-full bg-yellow-500 text-white text-xs py-1 rounded hover:bg-yellow-600 transition"
+                    onClick={() => handleFriendAction(friend.id, !!friend.requestSent)}
+                    className={`mt-1 w-full text-xs py-1 rounded transition
+                      ${friend.requestSent
+                        ? "bg-gray-400 hover:bg-gray-500 text-white"
+                        : "bg-yellow-500 hover:bg-yellow-600 text-white"
+                      }`}
                   >
-                    Add Friend
+                    {friend.requestSent ? "Cancel Request" : "Add Friend"}
                   </button>
                 </div>
               ))}

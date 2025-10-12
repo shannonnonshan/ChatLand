@@ -231,6 +231,7 @@ async sendFriendRequest(senderId: number, receiverId: number) {
   if (senderId === receiverId)
     throw new BadRequestException('Không thể gửi lời mời cho chính bạn');
 
+  // 🔍 Kiểm tra xem đã có yêu cầu kết bạn nào giữa 2 người chưa
   const existing = await this.prisma.friendRequest.findFirst({
     where: {
       OR: [
@@ -241,22 +242,58 @@ async sendFriendRequest(senderId: number, receiverId: number) {
   });
   if (existing) throw new BadRequestException('Đã tồn tại yêu cầu kết bạn');
 
+  // 🧠 Lấy thông tin người gửi (sender)
+  const sender = await this.prisma.user.findUnique({
+    where: { id: senderId },
+    select: { name: true },
+  });
+
+  // 📨 Tạo yêu cầu kết bạn
   const request = await this.prisma.friendRequest.create({
     data: { senderId, receiverId },
   });
 
-  // Tạo notification với title bắt buộc
+  // 🔔 Tạo notification hiển thị tên sender
   await this.prisma.notification.create({
     data: {
       userId: receiverId,
       senderId,
       type: 'FRIEND_REQUEST',
       title: 'Lời mời kết bạn mới',
-      content: `Bạn nhận được lời mời kết bạn từ người dùng ${senderId}`,
+      content: `Bạn nhận được lời mời kết bạn từ ${sender?.name || 'một người dùng'}.`,
     },
   });
 
   return request;
+}
+async cancelFriendRequest(senderId: number, receiverId: number) {
+  // 🔍 Kiểm tra xem có yêu cầu kết bạn nào giữa 2 người này không
+  const existing = await this.prisma.friendRequest.findFirst({
+    where: {
+      OR: [
+        { senderId, receiverId },
+        { senderId: receiverId, receiverId: senderId },
+      ],
+    },
+  });
+
+  if (!existing) {
+    throw new BadRequestException('Không tồn tại yêu cầu kết bạn để hủy');
+  }
+
+  await this.prisma.friendRequest.delete({
+    where: { id: existing.id },
+  });
+
+  await this.prisma.notification.deleteMany({
+    where: {
+      senderId,
+      userId: receiverId,
+      type: 'FRIEND_REQUEST',
+    },
+  });
+
+  return { message: 'Đã hủy yêu cầu kết bạn thành công' };
 }
 async rejectFriendRequest(requestId: number) {
   await this.prisma.friendRequest.update({

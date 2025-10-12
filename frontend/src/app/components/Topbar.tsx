@@ -77,7 +77,7 @@ export default function Topbar() {
             <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 border border-gray-200 rounded-lg shadow-md">
               <div className="p-3 text-sm">
                 <p className="font-semibold">{user.name}</p>
-                <p className="text-gray-500">{user.email}</p>
+                <p className="text-gray-500 max-w-[90%]">{user.email}</p>
               </div>
               <button
                 onClick={() => {

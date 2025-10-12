@@ -3,37 +3,38 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
-  id               Int             @id @default(autoincrement())
-  name             String
-  email            String          @unique
-  password         String
-  avatar           String?
-  bio              String?
-  role             String?
-  online           Boolean         @default(false)
-  lastSeen         DateTime?
-  createdAt        DateTime        @default(now())
-  receivedRequests FriendRequest[] @relation("ReceivedRequests")
-  sentRequests     FriendRequest[] @relation("SentRequests")
-  friendshipsA     Friendship[]    @relation("friendsA")
-  friendshipsB     Friendship[]    @relation("friendsB")
-  messagesReceived Message[]       @relation("ReceivedMessages")
-  messagesSent     Message[]       @relation("SentMessages")
-  notifications    Notification[]  @relation("UserNotifications")
-  posts            Post[]
-
-  // 🔹 Quan hệ tới notifications mà user gửi
-  sentNotifications Notification[] @relation("SentNotifications")
+  id                Int             @id @default(autoincrement())
+  name              String
+  email             String          @unique
+  password          String
+  avatar            String?
+  bio               String?
+  role              String?
+  online            Boolean         @default(false)
+  lastSeen          DateTime?
+  createdAt         DateTime        @default(now())
+  receivedRequests  FriendRequest[] @relation("ReceivedRequests")
+  sentRequests      FriendRequest[] @relation("SentRequests")
+  friendshipsA      Friendship[]    @relation("friendsA")
+  friendshipsB      Friendship[]    @relation("friendsB")
+  messagesReceived  Message[]       @relation("ReceivedMessages")
+  messagesSent      Message[]       @relation("SentMessages")
+  sentNotifications Notification[]  @relation("SentNotifications")
+  notifications     Notification[]  @relation("UserNotifications")
+  posts             Post[]
 }
 
 model Message {
   id         Int      @id @default(autoincrement())
+  type       String   @default("text") // 'text' | 'audio' | 'image'
   content    String
+  mediaUrl   String?  // file/audio/image url
   createdAt  DateTime @default(now())
   seen       Boolean  @default(false)
   senderId   Int
@@ -89,10 +90,6 @@ model Notification {
   link      String?
   isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
-
-  // 🔹 Quan hệ tới User (người nhận)
-  user      User     @relation("UserNotifications", fields: [userId], references: [id])
-
-  // 🔹 Quan hệ tới User (người gửi)
   sender    User?    @relation("SentNotifications", fields: [senderId], references: [id])
+  user      User     @relation("UserNotifications", fields: [userId], references: [id])
 }
