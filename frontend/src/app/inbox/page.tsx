@@ -118,12 +118,10 @@ export default function InboxPage() {
   };
 
   const onlineFriends = friends.filter(f => f.online);
-  const conversationFriends = friends
-    .filter(f => f.messages.length > 0 && !f.online)
-    .sort(
-      (a, b) =>
-        (b.lastMessage?.timestamp || 0) - (a.lastMessage?.timestamp || 0)
-    );
+  const conversationFriends = [
+    ...friends.filter(f => f.messages.length > 0 && !f.online && f.id !== activeFriend?.id),
+    ...(activeFriend ? [activeFriend] : [])
+  ].sort((a, b) => (b.lastMessage?.timestamp || 0) - (a.lastMessage?.timestamp || 0));
 
   return (
     <>

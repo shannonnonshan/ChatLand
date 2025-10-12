@@ -3,10 +3,11 @@
 import { useParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { useChat, Friend } from '@/hooks/useChat'
+import { useRouter } from 'next/navigation'
 export default function ListFriendsPage() {
   const { id } = useParams()
   const userId = Number(id)
-
+  const router = useRouter()
   interface FriendRequest {
     id: number
     sender: {
@@ -156,15 +157,16 @@ export default function ListFriendsPage() {
                 onClick={() => {
                   // tạo đối tượng Friend cho useChat
                   const chatFriend: Friend = {
-                      id: friend.id.toString(), 
-                      name: friend.name,
-                      avatar: friend.avatar || "/logo.png",
-                      messages: [],
-                      online: false,
-                      lastMessage: undefined,
-                    }
-                    openChat(chatFriend)
-                  }}
+                    id: friend.id.toString(), 
+                    name: friend.name,
+                    avatar: friend.avatar || "/logo.png",
+                    messages: [],
+                    online: false,
+                    lastMessage: undefined,
+                  }
+                  openChat(chatFriend)       // set activeFriend trong hook
+                  router.push(`/inbox`) // chuyển sang trang inbox
+                }}
                 className="flex justify-between items-center p-4 border rounded-md shadow-sm cursor-pointer hover:bg-slate-100"
               >
                 <div>

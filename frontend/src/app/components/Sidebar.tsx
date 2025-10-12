@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Home, Users, Mail, MessageSquareHeart } from "lucide-react";
 import SignInModal from "./(modal)/SignInModal";
 import { useAuth } from "@/context/AuthContext";
@@ -10,17 +10,15 @@ import { useAuth } from "@/context/AuthContext";
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { user } = useAuth(); // ✅ lấy user từ context
+  const { user } = useAuth(); // lấy user từ context
   const [showSignIn, setShowSignIn] = useState(false);
-  const [activeHref, setActiveHref] = useState(pathname);
 
-  // ✅ sinh navItems động dựa trên user
+  // navItems động dựa trên user
   const navItems = useMemo(
     () => [
       { href: "/", label: "Dashboard", icon: Home },
       { href: "/friends", label: "Friends", icon: MessageSquareHeart },
       { href: "/inbox", label: "Inbox", icon: Mail },
-      // Nếu có user => gắn id vào link
       {
         href: user ? `/listfriend/${user.id}` : "/listfriend",
         label: "List Friends",
@@ -30,17 +28,19 @@ export default function Sidebar() {
     [user]
   );
 
+  // click vào route cần đăng nhập
   const handleRestrictedClick = (href: string) => {
     if (!user) {
       setShowSignIn(true);
     } else {
-      setActiveHref(href);
       router.push(href);
     }
   };
 
+  // check route active dựa vào pathname
   const isItemActive = (href: string) => {
-    return activeHref === href || (href !== "/" && pathname.startsWith(href));
+    if (href === "/") return pathname === "/";
+    return pathname.startsWith(href);
   };
 
   return (
@@ -90,7 +90,6 @@ export default function Sidebar() {
                   ? "bg-blue-900 text-white"
                   : "text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
               }`}
-              onClick={() => setActiveHref(item.href)}
             >
               <item.icon className="w-5 h-5" />
               <span className="absolute left-14 top-1/2 -translate-y-1/2 whitespace-nowrap rounded-md bg-gray-800 text-white text-sm px-2 py-1 opacity-0 group-hover:opacity-100 pointer-events-none transition">
