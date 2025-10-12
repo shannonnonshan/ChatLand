@@ -8,7 +8,6 @@ import { useRouter } from "next/navigation";
 import SignInModal from "./components/(modal)/SignInModal";
 import SignUpModal from "./components/(modal)/SignUpModal";
 import { useAuth } from "@/context/AuthContext";
-
 interface Author {
   id: number;
   name: string;
