@@ -4,14 +4,14 @@ import { useState, useEffect, useRef } from "react";
 import { io, Socket } from "socket.io-client";
 import { v4 as uuidv4 } from "uuid";
 import { useAuth } from "@/context/AuthContext";
-
+import { formatTime } from "@/utils/formatTime";
 export type Message = {
   id: string;
   fromMe: boolean;
   text: string;
   type: "text" | "audio" | "image";
   mediaUrl?: string | null;
-  timestamp: number;
+  timestamp: number; 
   seen: boolean;
   status?: "sending" | "sent" | "delivered" | "failed";
 };
@@ -27,14 +27,14 @@ export type Friend = {
 };
 
 type BackendMessage = {
-  id: string | number;
-  content: string;
+  id: string;
+  fromMe: boolean;
   type: "text" | "audio" | "image";
-  mediaUrl?: string | null;
-  senderId: number;
-  receiverId: number;
-  createdAt: string | number;
-  seen: boolean
+  text: string;
+  mediaUrl: string | null;
+  timestamp: number;
+  status: "delivered";
+  seen?: boolean;
 };
 
 
@@ -65,18 +65,18 @@ export function useChat(): UseChatReturn {
 
   // Convert backend message → frontend message
   const toMessage = (m: BackendMessage): Message => ({
-    id: m.id.toString(),
-    fromMe: m.senderId === user?.id,
-    text: m.content,
-    type: m.type || "text",
-    mediaUrl: m.mediaUrl,
-    timestamp: new Date(m.createdAt).getTime(),
-    seen: m.seen ?? false,
-    status: "delivered",
+  id: m.id,
+  fromMe: m.fromMe,
+  text: m.text,          // dùng text từ backend
+  type: m.type,
+  mediaUrl: m.mediaUrl,
+  timestamp: m.timestamp, // backend đã trả number
+  seen: m.seen ?? false,  // backend chưa trả seen → default false
+  status: m.status || "delivered",
   });
 
     useEffect(() => {
-    if (!user?.id) return; // ✅ đợi user có id thật
+    if (!user?.id) return; 
 
     const fetchData = async () => {
       try {
@@ -85,7 +85,7 @@ export function useChat(): UseChatReturn {
 
         const convRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/${user.id}/conversations`);
         const convData: Conversation[] = await convRes.json();
-
+        console.log(convData)
         const merged = friendsData.map(f => {
           const conv = convData.find(c => c.friend.id === f.id);
           const convMessages = conv?.messages.map(m => ({
@@ -106,8 +106,7 @@ export function useChat(): UseChatReturn {
     };
 
     fetchData();
-  }, [user?.id]); // 👈 thay vì [user]
-
+  }, [user?.id]); 
 
   // Setup Socket.IO
   useEffect(() => {
@@ -132,7 +131,7 @@ export function useChat(): UseChatReturn {
         text: m.text, 
         type: m.type || "text", 
         mediaUrl: m.mediaUrl, 
-        timestamp: m.timestamp, 
+        timestamp: new Date(m.timestamp).getTime(), 
         status: "delivered",
         seen:false
       };

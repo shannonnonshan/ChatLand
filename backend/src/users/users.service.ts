@@ -366,55 +366,48 @@ async getFriendRequests(userId: number) {
   /**
    * Lấy danh sách conversation 1-1 của user hiện tại
    */
-  async getConversations(userId: number) {
-    const friends = await this.getFriendsByUserId(userId);
+async getConversations(userId: number) {
+  const friends = await this.getFriendsByUserId(userId);
 
-    const conversations = await Promise.all(
-      friends.map(async (f) => {
-        const messages = await this.prisma.message.findMany({
-          where: {
-            OR: [
-              { senderId: userId, receiverId: f.id },
-              { senderId: f.id, receiverId: userId },
-            ],
-          },
-          include: { sender: true },
-          orderBy: { createdAt: 'asc' },
-        });
+  const conversations = await Promise.all(
+    friends.map(async (f) => {
+      const messages = await this.prisma.message.findMany({
+        where: {
+          OR: [
+            { senderId: userId, receiverId: f.id },
+            { senderId: f.id, receiverId: userId },
+          ],
+        },
+        include: { sender: true },
+        orderBy: { createdAt: 'asc' },
+      });
 
-        if (messages.length === 0) return null; // 🔹 loại bỏ friend chưa nhắn
+      if (messages.length === 0) return null;
 
-        const msgs = messages.map((m) => ({
-          id: m.id.toString(),
-          fromMe: m.senderId === userId,
-          text: m.content,
-          timestamp: m.createdAt.getTime(),
-          status: 'delivered',
-        }));
+      const msgs = messages.map((m) => ({
+        id: m.id.toString(),
+        fromMe: Number(m.senderId) === Number(userId),
+        type: m.type as "text" | "audio" | "image",
+        text: m.type === "text" ? m.content : m.type === "audio" ? "[Voice message 🎧]" : "[Image]",
+        mediaUrl: m.mediaUrl || null,
+        timestamp: new Date(m.createdAt).getTime(),
+        status: "delivered",
+        seen: m.seen,
+      }));
 
-        return {
-          friend: {
-            id: f.id.toString(),
-            name: f.name,
-            avatar: f.avatar || '',
-            online: false,
-          },
-          messages: msgs,
-          lastMessage: msgs[msgs.length - 1],
-        };
-      }),
-    );
+      return {
+        friend: {
+          id: f.id.toString(),
+          name: f.name,
+          avatar: f.avatar || '',
+          online: false,
+        },
+        messages: msgs,
+        lastMessage: msgs[msgs.length - 1],
+      };
+    })
+  );
 
-    // loại bỏ null và sort theo lastMessage
-    return conversations
-      .filter((c) => c !== null)
-      .sort(
-        (a, b) =>
-          (b.lastMessage?.timestamp || 0) - (a.lastMessage?.timestamp || 0),
-      ) as {
-      friend: { id: string; name: string; avatar: string; online: boolean };
-      messages: Message[];
-      lastMessage: Message | undefined;
-    }[];
-  }
+  return conversations.filter(Boolean);
+}
 }

@@ -7,21 +7,21 @@ import { useChat, Friend, Message } from "@/hooks/useChat";
 import { useAuth } from "@/context/AuthContext";
 import AudioRecorder from "../components/AudioRecoder";
 import AudioMessage from "../components/AudioMessage";
-
+import { formatTime } from "@/utils/formatTime";
+import { span } from "framer-motion/client";
 export default function InboxPage() {
   const { user } = useAuth();
   const { friends, activeFriend, openChat, sendMessage } = useChat();
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const socketRef = useRef<unknown>(null); // optional: mark seen emit socket
-
+  
   // Scroll xuống cuối khi có tin nhắn mới
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [activeFriend?.messages]);
 
-  const formatTime = (ts: number) =>
-    new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
 
   /** Gửi tin nhắn text */
   const handleSend = (e: React.FormEvent) => {
@@ -214,12 +214,14 @@ export default function InboxPage() {
                   </p>
                 ) : (
                   activeFriend.messages.map((m) => (
+                    
                     <div
                       key={m.id}
                       className={`flex w-full ${
                         m.fromMe ? "justify-end" : "justify-start"
                       }`}
                     >
+                    
                       <div
                         className={`inline-block break-words whitespace-pre-wrap max-w-[60%] rounded-2xl px-3 py-2 text-sm shadow relative ${
                           m.fromMe
@@ -241,7 +243,6 @@ export default function InboxPage() {
                           }`}
                         >
                           <span>{formatTime(m.timestamp)}</span>
-
                           {m.fromMe && (
                             <>
                               {m.seen ? (
