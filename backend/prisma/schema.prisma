@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
   output   = "../generated/prisma"
@@ -15,24 +9,83 @@ datasource db {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  name      String
-  email     String   @unique
-  createdAt DateTime @default(now())
-  reports Report[]
+  id                                           Int             @id @default(autoincrement())
+  name                                         String
+  email                                        String          @unique
+  createdAt                                    DateTime        @default(now())
+  avatar                                       String?
+  bio                                          String?
+  lastSeen                                     DateTime?
+  online                                       Boolean         @default(false)
+  password                                     String
+  role                                         String?
+  FriendRequest_FriendRequest_receiverIdToUser FriendRequest[] @relation("FriendRequest_receiverIdToUser")
+  FriendRequest_FriendRequest_senderIdToUser   FriendRequest[] @relation("FriendRequest_senderIdToUser")
+  Friendship_Friendship_userAIdToUser          Friendship[]    @relation("Friendship_userAIdToUser")
+  Friendship_Friendship_userBIdToUser          Friendship[]    @relation("Friendship_userBIdToUser")
+  Message_Message_receiverIdToUser             Message[]       @relation("Message_receiverIdToUser")
+  Message_Message_senderIdToUser               Message[]       @relation("Message_senderIdToUser")
+  Notification                                 Notification[]
+  Post                                         Post[]
 }
 
 model Friendship {
-  id        Int      @id @default(autoincrement())
-  userAId   Int
-  userBId   Int
-  createdAt DateTime @default(now())
+  id                            Int      @id @default(autoincrement())
+  userAId                       Int
+  userBId                       Int
+  createdAt                     DateTime @default(now())
+  User_Friendship_userAIdToUser User     @relation("Friendship_userAIdToUser", fields: [userAId], references: [id], onDelete: Cascade)
+  User_Friendship_userBIdToUser User     @relation("Friendship_userBIdToUser", fields: [userBId], references: [id], onDelete: Cascade)
+
+  @@unique([userAId, userBId])
+  @@index([userAId])
+  @@index([userBId])
 }
 
-model Report {
+model FriendRequest {
+  id                                  Int      @id @default(autoincrement())
+  senderId                            Int
+  receiverId                          Int
+  status                              String   @default("pending")
+  createdAt                           DateTime @default(now())
+  updatedAt                           DateTime
+  User_FriendRequest_receiverIdToUser User     @relation("FriendRequest_receiverIdToUser", fields: [receiverId], references: [id])
+  User_FriendRequest_senderIdToUser   User     @relation("FriendRequest_senderIdToUser", fields: [senderId], references: [id])
+
+  @@unique([senderId, receiverId])
+  @@index([receiverId])
+  @@index([senderId])
+}
+
+model Message {
+  id                            Int      @id @default(autoincrement())
+  content                       String
+  createdAt                     DateTime @default(now())
+  seen                          Boolean  @default(false)
+  senderId                      Int
+  receiverId                    Int
+  User_Message_receiverIdToUser User     @relation("Message_receiverIdToUser", fields: [receiverId], references: [id])
+  User_Message_senderIdToUser   User     @relation("Message_senderIdToUser", fields: [senderId], references: [id])
+}
+
+model Notification {
   id        Int      @id @default(autoincrement())
   userId    Int
-  reason    String
+  senderId  Int?
+  type      String
+  title     String
+  content   String?
+  link      String?
+  isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id])
+  User      User     @relation(fields: [userId], references: [id])
+}
+
+model Post {
+  id          Int      @id @default(autoincrement())
+  description String
+  imageUrl    String?
+  createdAt   DateTime @default(now())
+  userId      Int
+  User        User     @relation(fields: [userId], references: [id])
 }
