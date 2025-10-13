@@ -262,6 +262,7 @@ export class UsersService {
       },
       take: limit,
       select: { id: true, name: true, avatar: true },
+      orderBy: { createdAt: 'desc' },
     });
 
     return suggestions;

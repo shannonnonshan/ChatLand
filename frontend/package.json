@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
+    "firebase": "^12.4.0",
     "framer-motion": "^12.23.22",
     "lucide-react": "^0.544.0",
     "mic-recorder-to-mp3": "^2.2.2",

@@ -7,6 +7,7 @@ import { PostsModule } from './posts/posts.module';
 import { UsersModule } from './users/users.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { AiModule } from './ai/ai.module';
+import { SpeechModule } from './speech/speech.module';
 
 @Module({
   imports: [
@@ -14,7 +15,7 @@ import { AiModule } from './ai/ai.module';
       isGlobal: true,
     }),
     ChatModule, AiModule,
-    PostsModule, UsersModule, PrismaModule],
+    PostsModule, UsersModule, PrismaModule, SpeechModule],
   controllers: [AppController],
   providers: [AppService],
 })
