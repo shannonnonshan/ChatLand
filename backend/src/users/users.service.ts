@@ -1,6 +1,8 @@
 import { PrismaService } from '../prisma/prisma.service';
 import { UserProfileDto } from './dto/profile.dto';
 import * as bcrypt from 'bcrypt';
+import * as nodemailer from 'nodemailer';
+import { randomInt } from 'crypto';
 import { JwtService } from '@nestjs/jwt';
 import { SignupDto } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
@@ -10,7 +12,6 @@ import {
   UnauthorizedException,
   BadRequestException,
 } from '@nestjs/common';
-
 type Message = {
   id: string;
   fromMe: boolean;
@@ -107,20 +108,60 @@ export class UsersService {
   }
 
   async login(loginData: LoginDto) {
-    const { email, password } = loginData;
+    const { email, password, otp } = loginData;
+
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) throw new UnauthorizedException('Email không tồn tại');
 
     const passwordValid = await bcrypt.compare(password, user.password);
     if (!passwordValid) throw new UnauthorizedException('Sai mật khẩu');
+    console.log(user.twoFactorEnabled);
+    if (user.twoFactorEnabled) {
+      // Chưa có OTP nhập → gửi OTP mới
+      if (!otp) {
+        const generatedOtp = randomInt(100000, 999999).toString();
+        const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
+        await this.prisma.user.update({
+          where: { id: user.id },
+          data: { otpCode: generatedOtp, otpExpiresAt: expiresAt },
+        });
+
+        // Gửi OTP email
+        const transporter = nodemailer.createTransport({
+          service: 'gmail',
+          auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+        });
+
+        await transporter.sendMail({
+          from: `"ChatLand" <${process.env.EMAIL_USER}>`,
+          to: user.email,
+          subject: 'ChatLand OTP Verification',
+          html: `<h3>Mã OTP của bạn: <b>${generatedOtp}</b></h3><p>Hết hạn trong 5 phút.</p>`,
+        });
+
+        return { message: 'OTP đã được gửi đến email của bạn', requiresOtp: true };
+      }
+
+      // Có OTP nhập → kiểm tra
+      if (otp !== user.otpCode || !user.otpExpiresAt || new Date() > user.otpExpiresAt) {
+        throw new UnauthorizedException('OTP không hợp lệ hoặc đã hết hạn');
+      }
+      
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { otpCode: null, otpExpiresAt: null },
+      });
+    }
     const token = await this.generateToken(user.id, user.email);
+
     return {
       message: 'Đăng nhập thành công',
-      user: { id: user.id, email: user.email, name: user.name },
+      user: { id: user.id, email: user.email, name: user.name, twoFactorEnabled: user.twoFactorEnabled },
       token,
     };
   }
+
 
   private async generateToken(userId: number, email: string) {
     return this.jwtService.signAsync({ sub: userId, email });
@@ -410,4 +451,100 @@ async getConversations(userId: number) {
 
   return conversations.filter(Boolean);
 }
+  async googleLogin(googleUser: any) {
+    if (!googleUser) {
+      throw new Error('No user from Google');
+    }
+
+    let user = await this.prisma.user.findUnique({
+      where: { ggid: googleUser.ggid },
+    });
+
+    if (!user && googleUser.email) {
+      user = await this.prisma.user.findUnique({
+        where: { email: googleUser.email },
+      });
+
+      // Nếu có user email đó → cập nhật thêm ggid
+      if (user) {
+        user = await this.prisma.user.update({
+          where: { email: googleUser.email },
+          data: { ggid: googleUser.ggid },
+        });
+      }
+    }
+
+    if (!user) {
+      user = await this.prisma.user.create({
+        data: {
+          ggid: googleUser.ggid,
+          name: googleUser.name || 'Người dùng Google',
+          email: googleUser.email ?? `${googleUser.ggid}@googleuser.fake`,
+          avatar: googleUser.avatar,
+          password: '', // Google login không dùng password
+        },
+      });
+    }
+
+    // 4️⃣ Tạo JWT token
+    const payload = { sub: user.id, email: user.email };
+    const token = await this.jwtService.signAsync(payload);
+
+    return {
+      access_token: token,
+      user,
+    };
+  }
+  async sendOtpEmail(userId: number) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    // ✅ Sinh OTP
+    const otp = randomInt(100000, 999999).toString();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 phút
+
+    // ✅ Lưu OTP và thời gian hết hạn vào DB
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        otpCode: otp,
+        otpExpiresAt: expiresAt,
+      },
+    });
+
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+
+    await transporter.sendMail({
+      from: `"ChatLand" <${process.env.EMAIL_USER}>`,
+      to: user.email,
+      subject: '🔐 ChatLand OTP Verification',
+      html: `
+        <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+          <h2>Xin chào ${user.name || 'bạn'} 👋</h2>
+          <p>Mã xác thực (OTP) của bạn là:</p>
+          <h1 style="color: #2563eb; letter-spacing: 3px;">${otp}</h1>
+          <p>Mã này sẽ hết hạn sau <b>5 phút</b>.</p>
+          <p>Nếu bạn không yêu cầu, vui lòng bỏ qua email này.</p>
+          <hr/>
+          <small>ChatLand Security Team</small>
+        </div>
+      `,
+    });
+
+    return { message: 'OTP sent successfully' };
+  }
+  async updateTwoFA(userId: number, twoFactorEnabled: boolean) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { twoFactorEnabled },
+      select: { id: true, twoFactorEnabled: true },
+    });
+  }
+
 }

@@ -10,6 +10,7 @@ datasource db {
 
 model User {
   id                Int             @id @default(autoincrement())
+  ggid              String?         @unique
   name              String
   email             String          @unique
   password          String
@@ -28,17 +29,20 @@ model User {
   sentNotifications Notification[]  @relation("SentNotifications")
   notifications     Notification[]  @relation("UserNotifications")
   posts             Post[]
+  twoFactorEnabled  Boolean         @default(false)
+  otpCode           String?
+  otpExpiresAt      DateTime?
 }
 
 model Message {
   id         Int      @id @default(autoincrement())
-  type       String   @default("text") // 'text' | 'audio' | 'image'
   content    String
-  mediaUrl   String?  // file/audio/image url
   createdAt  DateTime @default(now())
   seen       Boolean  @default(false)
   senderId   Int
   receiverId Int
+  mediaUrl   String?
+  type       String   @default("text")
   receiver   User     @relation("ReceivedMessages", fields: [receiverId], references: [id])
   sender     User     @relation("SentMessages", fields: [senderId], references: [id])
 }
