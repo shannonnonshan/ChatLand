@@ -5,61 +5,46 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { motion } from 'framer-motion'
 import { UserIcon } from '@heroicons/react/24/outline'
+import { useAuth } from '@/context/AuthContext'
 
-// Kiểu dữ liệu Post từ backend
 interface Post {
   id: number
-  description: string
+  description?: string
   imageUrl?: string
   createdAt: string
   user: {
     id: number
     name: string
-    avatar: string
-    online: boolean
+    avatar?: string
+    online?: boolean
   }
 }
 
 export default function FriendsFeedPage() {
   const router = useRouter()
+  const { user: currentUser } = useAuth()
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
 
-useEffect(() => {
-  const fetchPosts = async () => {
-    setLoading(true)
-    try {
-      // Lấy userId từ localStorage/session
-      const storedUserId = localStorage.getItem('userId')
-      if (!storedUserId) {
-        console.warn('No userId found in localStorage')
+  useEffect(() => {
+    const fetchFriendPosts = async () => {
+      if (!currentUser?.id) return
+      setLoading(true)
+      try {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/posts/friends/${currentUser.id}`)
+        if (!res.ok) throw new Error(`Failed to fetch posts: ${res.status}`)
+        const data: Post[] = await res.json()
+        setPosts(data)
+      } catch (err) {
+        console.error('Error fetching friend posts:', err)
         setPosts([])
-        return
+      } finally {
+        setLoading(false)
       }
-
-      const userId = Number(storedUserId)
-      if (isNaN(userId)) {
-        console.error('Invalid userId in localStorage:', storedUserId)
-        setPosts([])
-        return
-      }
-
-      // Gọi API backend lấy posts của bạn bè
-      const res = await fetch(`/api/posts/friends?userId=${userId}`)
-      if (!res.ok) throw new Error(`Failed to fetch posts: ${res.status}`)
-
-      const data: Post[] = await res.json()
-      setPosts(data)
-    } catch (err) {
-      console.error('Error fetching friend posts:', err)
-      setPosts([])
-    } finally {
-      setLoading(false)
     }
-  }
 
-  fetchPosts()
-}, [])
+    fetchFriendPosts()
+  }, [currentUser?.id])
 
   if (loading) return <div className="text-center py-20">Loading...</div>
 
@@ -88,7 +73,7 @@ useEffect(() => {
                 <div className="flex items-center gap-3">
                   <div className="relative">
                     <Image
-                      src={post.user.avatar}
+                      src={post.user.avatar || '/logo.png'}
                       alt={post.user.name}
                       width={40}
                       height={40}
@@ -112,10 +97,16 @@ useEffect(() => {
                   </button>
                 </div>
 
-                <p className="text-gray-700 text-sm">{post.description}</p>
+                {post.description && <p className="text-gray-700 text-sm">{post.description}</p>}
+
                 {post.imageUrl && (
                   <div className="w-full h-60 relative rounded-lg overflow-hidden">
-                    <Image src={post.imageUrl} alt="Post image" fill className="object-cover" />
+                    <Image
+                      src={`${process.env.NEXT_PUBLIC_API_URL}${post.imageUrl}`}
+                      alt="Post image"
+                      fill
+                      className="object-cover"
+                    />
                   </div>
                 )}
               </motion.div>

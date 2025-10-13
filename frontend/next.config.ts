@@ -18,13 +18,14 @@ const baseConfig = {
   images: {
     remotePatterns: [
       {
-        protocol: "https",
-        hostname: "docs.material-tailwind.com",
-        port: "",
-        pathname: "/**",
+        protocol: 'https',
+        hostname: '**', // cho phép tất cả domain HTTPS
+      },
+      {
+        protocol: 'http',
+        hostname: '**', // cho phép tất cả domain HTTP
       },
     ],
-    domains: ['upload.wikimedia.org', 'cdn-icons-png.flaticon.com'],
   },
 
   async headers() {
