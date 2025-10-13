@@ -25,7 +25,7 @@ async function main() {
     name: `NewUser${i + 1}`,
     email: `newuser${i + 1}@example.com`,
     password: passwordHash,
-    avatar: `https://i.pravatar.cc/150?img=${i + 21}`, // tránh trùng avatar cũ
+    avatar: null, // tránh trùng avatar cũ
     bio: `Hello, I am NewUser${i + 1}`,
     role: 'user',
     online: randomBool(),

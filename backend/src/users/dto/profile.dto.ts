@@ -20,4 +20,5 @@ export class UserProfileDto {
   bio?: string | null;
   posts: PostDto[];
   friends: FriendDto[];
+  role?:string| null;
 }

@@ -157,7 +157,7 @@ export class UsersService {
 
     return {
       message: 'Đăng nhập thành công',
-      user: { id: user.id, email: user.email, name: user.name, twoFactorEnabled: user.twoFactorEnabled },
+      user: { id: user.id, email: user.email, name: user.name, twoFactorEnabled: user.twoFactorEnabled, role:user.role },
       token,
     };
   }
@@ -262,6 +262,7 @@ export class UsersService {
       },
       take: limit,
       select: { id: true, name: true, avatar: true },
+      orderBy: { createdAt: 'desc' },
     });
 
     return suggestions;

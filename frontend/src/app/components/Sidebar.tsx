@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { Home, Users, Mail, MessageSquareHeart } from "lucide-react";
+import { Home, Users, Mail, MessageSquareHeart, Shield  } from "lucide-react";
 import SignInModal from "./(modal)/SignInModal";
 import { useAuth } from "@/context/AuthContext";
 
@@ -98,6 +98,18 @@ export default function Sidebar() {
             </Link>
           );
         })}
+          {/* Nút Admin Dashboard chỉ hiển thị khi user là admin */}
+        {user?.role === "admin" && (
+          <Link
+            href={`/admin/${user.id}`}
+            className={`relative group p-3 rounded-xl transition-colors text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700`}
+          >
+            <Shield className="w-5 h-5" />
+            <span className="absolute left-14 top-1/2 -translate-y-1/2 whitespace-nowrap rounded-md bg-gray-800 text-white text-sm px-2 py-1 opacity-0 group-hover:opacity-100 pointer-events-none transition">
+              Admin
+            </span>
+          </Link>
+        )}
       </aside>
     </>
   );

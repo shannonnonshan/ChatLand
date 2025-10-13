@@ -24,7 +24,7 @@ const baseConfig = {
         pathname: "/**",
       },
     ],
-    domains: ['upload.wikimedia.org', 'cdn-icons-png.flaticon.com'],
+    domains: ['upload.wikimedia.org', 'cdn-icons-png.flaticon.com','lh3.googleusercontent.com'],
   },
 
   async headers() {

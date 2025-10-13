@@ -20,10 +20,9 @@ model User {
   online            Boolean         @default(false)
   lastSeen          DateTime?
   createdAt         DateTime        @default(now())
-  ggid              String?         @unique
+  twoFactorEnabled  Boolean         @default(false)
   otpCode           String?
   otpExpiresAt      DateTime?
-  twoFactorEnabled  Boolean         @default(false)
   receivedRequests  FriendRequest[] @relation("ReceivedRequests")
   sentRequests      FriendRequest[] @relation("SentRequests")
   friendshipsA      Friendship[]    @relation("friendsA")
@@ -33,9 +32,6 @@ model User {
   sentNotifications Notification[]  @relation("SentNotifications")
   notifications     Notification[]  @relation("UserNotifications")
   posts             Post[]
-  twoFactorEnabled  Boolean         @default(false)
-  otpCode           String?
-  otpExpiresAt      DateTime?
 }
 
 model Message {
