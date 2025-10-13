@@ -19,6 +19,10 @@ model User {
   online            Boolean         @default(false)
   lastSeen          DateTime?
   createdAt         DateTime        @default(now())
+  ggid              String?         @unique
+  otpCode           String?
+  otpExpiresAt      DateTime?
+  twoFactorEnabled  Boolean         @default(false)
   receivedRequests  FriendRequest[] @relation("ReceivedRequests")
   sentRequests      FriendRequest[] @relation("SentRequests")
   friendshipsA      Friendship[]    @relation("friendsA")
@@ -32,13 +36,13 @@ model User {
 
 model Message {
   id         Int      @id @default(autoincrement())
-  type       String   @default("text") // 'text' | 'audio' | 'image'
   content    String
-  mediaUrl   String?  // file/audio/image url
   createdAt  DateTime @default(now())
   seen       Boolean  @default(false)
   senderId   Int
   receiverId Int
+  mediaUrl   String?
+  type       String   @default("text")
   receiver   User     @relation("ReceivedMessages", fields: [receiverId], references: [id])
   sender     User     @relation("SentMessages", fields: [senderId], references: [id])
 }
