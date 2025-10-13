@@ -5,17 +5,16 @@ import { Bell, Search, User } from "lucide-react";
 import SignInModal from "./(modal)/SignInModal";
 import SignUpModal from "./(modal)/SignUpModal";
 import Image from "next/image";
-
+import { useAuth } from "@/context/AuthContext";
+import { useRouter } from "next/navigation";
 export default function Topbar() {
-  const [user, setUser] = useState<null | { 
-    name: string; 
-    email: string; 
-    avatarUrl?: string 
-  }>(null); // null = chưa đăng nhập
+  const { user, logout } = useAuth(); // ✅ dùng context để đồng bộ user toàn app
   const [showSignIn, setShowSignIn] = useState(false);
   const [showSignUp, setShowSignUp] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
-
+  const router = useRouter();
+  const { user: currentUser} = useAuth();
+  const userId = currentUser?.id;
   return (
     <header className="fixed top-0 left-0 right-0 h-16 flex items-center justify-between px-6 bg-white dark:bg-gray-900 border-b border-gray-200 z-40">
       {/* Logo */}
@@ -27,7 +26,7 @@ export default function Topbar() {
           height={32} 
           className="h-8 w-8 object-contain" 
         />
-        <span className="text-xl font-bold text-black">Chat Land</span>
+        <span className="text-xl font-bold text-black dark:text-white">Chat Land</span>
       </div>
 
       {/* Search + Bell + Avatar */}
@@ -43,7 +42,10 @@ export default function Topbar() {
         </div>
 
         {/* Notification */}
-        <button className="relative p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">
+        <button
+          onClick={() => router.push(`/announcements/${userId}`)}
+          className="relative p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
+        >
           <Bell className="w-5 h-5 text-gray-600" />
           <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full animate-ping" />
         </button>
@@ -70,16 +72,16 @@ export default function Topbar() {
             )}
           </button>
 
-          {/* Menu user (nếu đã login) */}
+          {/* User Menu */}
           {user && showMenu && (
             <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 border border-gray-200 rounded-lg shadow-md">
               <div className="p-3 text-sm">
                 <p className="font-semibold">{user.name}</p>
-                <p className="text-gray-500">{user.email}</p>
+                <span className="text-gray-500 truncate">{user.email}</span>
               </div>
               <button
                 onClick={() => {
-                  setUser(null);
+                  logout();
                   setShowMenu(false);
                 }}
                 className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100 dark:hover:bg-gray-700"
@@ -91,7 +93,7 @@ export default function Topbar() {
         </div>
       </div>
 
-      {/* MODALS */}
+      {/* Modals */}
       {showSignIn && (
         <SignInModal
           onClose={() => setShowSignIn(false)}
@@ -99,12 +101,9 @@ export default function Topbar() {
             setShowSignIn(false);
             setShowSignUp(true);
           }}
-          onSignIn={(fakeUser) => {
-            setUser(fakeUser);
-            setShowSignIn(false);
-          }}
         />
       )}
+
       {showSignUp && (
         <SignUpModal
           onClose={() => setShowSignUp(false)}

@@ -1,103 +1,314 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
+import { PhotoIcon, CameraIcon, UserIcon } from "@heroicons/react/24/outline";
+import { useRouter } from "next/navigation";
+import SignInModal from "./components/(modal)/SignInModal";
+import SignUpModal from "./components/(modal)/SignUpModal";
+import { useAuth } from "@/context/AuthContext";
+interface Author {
+  id: number;
+  name: string;
+  avatar?: string;
+  isFriend?: boolean;
+  requestSent?: boolean;
+}
+
+interface Post {
+  id: number;
+  description: string;
+  imageUrl?: string;
+  createdAt: string;
+  user: Author;
+}
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const router = useRouter();
+  const { user: currentUser } = useAuth();
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [friendSuggestions, setFriendSuggestions] = useState<Author[]>([]);
+  const [text, setText] = useState("");
+  const [showSignIn, setShowSignIn] = useState(false);
+  const [showSignUp, setShowSignUp] = useState(false);
+    // ---------------- Common: Require Login ----------------
+  const handleRequireLogin = () => {
+    if (!currentUser) {
+      setShowSignIn(true);
+      return true;
+    }
+    else
+    { console.log("User is logged in:", currentUser);
+    return false;
+    }
+  };
+  // ---------------- Fetch Posts ----------------
+const handleCreatePost = async () => {
+  if (!currentUser?.id) return alert("Bạn chưa đăng nhập!");
+
+  if (!text.trim()) return alert("Vui lòng nhập nội dung trước khi đăng!");
+
+  try {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/posts`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: Number(currentUser.id), // ✅ ép kiểu number
+        description: text,
+      }),
+    });
+
+    if (!res.ok) throw new Error("Failed to create post");
+
+    const newPost = await res.json();
+    setPosts((prev) => [newPost, ...prev]);
+    setText("");
+  } catch (err) {
+    console.error(err);
+    alert("Đăng bài thất bại!");
+  }
+};
+
+  // ---------------- Fetch Friend Suggestions ----------------
+useEffect(() => {
+  const fetchSuggestions = async () => {
+    if (!currentUser?.id) {
+      return;
+    }
+    console.log("Fetching suggestions for userId:", currentUser);
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/users/friend-suggestions/${currentUser.id}`
+      );
+      console.log("Fetch response:", res);
+      if (!res.ok) throw new Error(res.statusText + " Failed to fetch friend suggestions");
+
+      const data: Author[] = await res.json();
+      setFriendSuggestions(data);
+    } catch (err) {
+      console.error("Error fetching friend suggestions:", err);
+    }
+  };
+
+  fetchSuggestions();
+}, [currentUser]);
+
+
+  // ---------------- Add Friend ----------------
+  const handleFriendAction = async (friendId: number, alreadySent: boolean) => {
+  if (handleRequireLogin()) return;
+
+  try {
+    const endpoint = alreadySent
+      ? `${process.env.NEXT_PUBLIC_API_URL}/users/friend-request/cancel`
+      : `${process.env.NEXT_PUBLIC_API_URL}/users/friend-request/send`;
+
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        senderId: currentUser?.id,
+        receiverId: friendId,
+      }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(errText);
+    }
+
+    // ✅ Cập nhật UI sau khi gửi hoặc hủy
+    setFriendSuggestions((prev) =>
+      prev.map((f) =>
+        f.id === friendId ? { ...f, requestSent: !alreadySent } : f
+      )
+    );
+  } catch (err) {
+    console.error("Error handling friend request:", err);
+    alert(alreadySent ? "Failed to cancel request!" : "Failed to send friend request!");
+  }
+};
+
+  // ---------------- Toggle Friend (UI Only) ----------------
+  const toggleFriend = (postId: number) => {
+    if (!currentUser) return;
+    setPosts((prev) =>
+      prev.map((post) =>
+        post.id === postId
+          ? { ...post, user: { ...post.user, isFriend: !post.user.isFriend } }
+          : post
+      )
+    );
+  };
+
+  return (
+    <>
+      {/* Sign In / Sign Up Modals */}
+      {showSignIn && (
+        <SignInModal
+          onClose={() => setShowSignIn(false)}
+          onSwitchToSignUp={() => {
+            setShowSignIn(false);
+            setShowSignUp(true);
+          }}
+        />
+      )}
+      {showSignUp && (
+        <SignUpModal
+          onClose={() => setShowSignUp(false)}
+          onSwitchToLogin={() => {
+            setShowSignUp(false);
+            setShowSignIn(true);
+          }}
+        />
+      )}
+
+      <div className="bg-gray-50 min-h-screen py-12 px-4 sm:px-6 lg:px-16">
+        <div className="mx-auto max-w-4xl space-y-6">
+          {/* Create Post Box */}
+          <div className="bg-white p-4 rounded-lg shadow-sm flex flex-col gap-3">
+            <div className="flex items-start gap-3 w-full">
+              <Image
+                src={currentUser?.avatarUrl || "/logo.png"}
+                alt="Avatar"
+                width={48}
+                height={48}
+                className="rounded-full"
+              />
+              <div className="flex-1 flex flex-row gap-2 items-start">
+                <textarea
+                  value={text}
+                  maxLength={100}
+                  placeholder={currentUser ? "What's on your mind?" : "Đăng nhập để viết bài..."}
+                  onClick={handleRequireLogin}
+                  onChange={(e) => setText(e.target.value)}
+                  disabled={!currentUser}
+                  className="flex-1 rounded-md border border-gray-300 p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none disabled:bg-gray-100 disabled:cursor-not-allowed"
+                />
+                <div className="flex gap-2 ml-2 mt-1">
+                  <button
+                    onClick={() => {
+                      if (handleRequireLogin()) return;
+                      alert("Upload ảnh — đang phát triển");
+                    }}
+                    className="w-10 h-10 flex items-center justify-center bg-yellow-200 rounded-lg hover:bg-yellow-300 transition transform hover:scale-110 hover:shadow-md"
+                    disabled={!currentUser}
+                  >
+                    <PhotoIcon className="h-5 w-5 text-gray-800" />
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (handleRequireLogin()) return;
+                      router.push("/camera");
+                    }}
+                    className="w-10 h-10 flex items-center justify-center bg-yellow-200 rounded-lg hover:bg-yellow-300 transition transform hover:scale-110 hover:shadow-md animate-pulse-slow"
+                    disabled={!currentUser}
+                  >
+                    <CameraIcon className="h-5 w-5 text-gray-800" />
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div className="text-right text-xs text-gray-500">{text.length}/100</div>
+            {currentUser && (
+              <button
+                onClick={handleCreatePost}
+                className="self-end bg-blue-600 text-white px-4 py-1 rounded-md text-sm font-medium hover:bg-blue-700 transition"
+              >
+                Đăng bài
+              </button>
+            )}
+          </div>
+
+          {/* Friend Suggestions */}
+          <div className="mt-6">
+            <h2 className="text-gray-700 font-semibold mb-2 text-sm">Friend Suggestions</h2>
+            <div className="flex overflow-x-auto gap-4 py-2">
+              {friendSuggestions.length === 0 && (
+                <span className="text-gray-400 text-xs">No suggestions available</span>
+              )}
+              {friendSuggestions.map((friend) => (
+                <div
+                  key={friend.id}
+                  className="flex-shrink-0 w-40 bg-white p-3 rounded-lg shadow-sm flex flex-col items-center gap-2"
+                >
+                  <Image
+                    src={friend.avatar || "/logo.png"}
+                    alt={friend.id.toString()}
+                    width={48}
+                    height={48}
+                    className="rounded-full"
+                  />
+                  <p className="text-sm font-medium text-gray-900 text-center">{friend.name}</p>
+                  
+                  {/* Nếu đã gửi request thì hiển thị nút Cancel Request, nếu chưa gửi thì vẫn Add Friend */}
+                  <button
+                    onClick={() => handleFriendAction(friend.id, !!friend.requestSent)}
+                    className={`mt-1 w-full text-xs py-1 rounded transition
+                      ${friend.requestSent
+                        ? "bg-gray-400 hover:bg-gray-500 text-white"
+                        : "bg-yellow-500 hover:bg-yellow-600 text-white"
+                      }`}
+                  >
+                    {friend.requestSent ? "Cancel Request" : "Add Friend"}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Posts List */}
+          <div className="flex flex-col gap-6">
+            {posts.map((post) => (
+              <div key={post.id} className="bg-white p-4 rounded-lg shadow-sm flex flex-col gap-3">
+                <div className="flex justify-between items-center text-xs text-gray-500">
+                  <time>{new Date(post.createdAt).toLocaleDateString()}</time>
+                </div>
+                <p className="text-gray-600 text-sm">{post.description}</p>
+                {post.imageUrl && (
+                  <div className="mt-2 w-full h-60 relative rounded overflow-hidden">
+                    <Image src={post.imageUrl} alt="Post image" fill className="object-cover rounded" />
+                  </div>
+                )}
+                <div className="flex items-center gap-3 mt-2">
+                  <Link href={`/profile/${post.user.id}`} className="flex items-center gap-2">
+                    <Image
+                      src={post.user.avatar || "/logo.png"}
+                      alt={post.user.name}
+                      width={32}
+                      height={32}
+                      className="rounded-full hover:opacity-80 transition"
+                    />
+                    <p className="font-semibold text-gray-900 hover:underline text-sm">{post.user.name}</p>
+                  </Link>
+                  {currentUser && (
+                    post.user.isFriend ? (
+                      <span className="bg-gray-300 text-gray-700 px-2 py-1 rounded text-xs font-medium">Friend</span>
+                    ) : (
+                      <button
+                        onClick={() => toggleFriend(post.id)}
+                        className="bg-blue-500 text-white px-3 py-1 rounded text-xs font-medium hover:bg-blue-600 transition"
+                      >
+                        Add Friend
+                      </button>
+                    )
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+
+        <style jsx global>{`
+          @keyframes pulse-slow {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.8; transform: scale(1.05); }
+          }
+          .animate-pulse-slow { animation: pulse-slow 2s infinite; }
+        `}</style>
+      </div>
+    </>
   );
 }

@@ -1,0 +1,4 @@
+npx prisma migrate reset
+npx prisma migrate dev --name add-message-type-and-mediaurl
+npx prisma studio
+npx prisma generate

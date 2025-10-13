@@ -1,250 +1,388 @@
 "use client";
 
-import { useState } from "react";
-
-type Friend = {
-  id: number;
-  name: string;
-  avatar: string;
-  online: boolean;
-  messages: { fromMe: boolean; text: string }[];
-};
+import { useState, useEffect, useRef } from "react";
+import Image from "next/image";
+import { SendHorizonal, CheckCheck, Check, Layers2 } from "lucide-react";
+import { useChat, Friend, Message } from "@/hooks/useChat";
+import { useAuth } from "@/context/AuthContext";
+import AudioRecorder from "../components/AudioRecoder";
+import AudioMessage from "../components/AudioMessage";
+import { formatTime } from "@/utils/formatTime";
+import { span } from "framer-motion/client";
 
 export default function InboxPage() {
-  const allFriends: Friend[] = [
-    {
-      id: 1,
-      name: "Tania",
-      avatar: "https://docs.material-tailwind.com/img/face-1.jpg",
-      online: true,
-      messages: [
-        { fromMe: false, text: "Hey, how are you?" },
-        { fromMe: true, text: "I'm good thanks 😄" },
-      ],
-    },
-    {
-      id: 2,
-      name: "Alexander",
-      avatar: "https://docs.material-tailwind.com/img/face-2.jpg",
-      online: false,
-      messages: [{ fromMe: false, text: "Let's play later 🎮" }],
-    },
-    {
-      id: 3,
-      name: "Emma",
-      avatar: "https://docs.material-tailwind.com/img/face-3.jpg",
-      online: true,
-      messages: [],
-    },
-    {
-      id: 4,
-      name: "Sophia",
-      avatar: "https://docs.material-tailwind.com/img/face-4.jpg",
-      online: true,
-      messages: [],
-    },
-    {
-      id: 5,
-      name: "Lucas",
-      avatar: "https://docs.material-tailwind.com/img/face-5.jpg",
-      online: false,
-      messages: [],
-    },
-  ];
-
-  const [inboxFriends, setInboxFriends] = useState<Friend[]>([
-    allFriends[0],
-    allFriends[1],
-  ]);
-
-  const [activeFriend, setActiveFriend] = useState<Friend | null>(null);
+  const { user } = useAuth();
+  const { friends, activeFriend, openChat, sendMessage, socket } = useChat();
   const [input, setInput] = useState("");
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const [summary, setSummary] = useState<string | null>(null);
+  const chatBoxRef = useRef<HTMLDivElement | null>(null);
+  // Scroll xuống cuối khi có tin nhắn mới
+  useEffect(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, [activeFriend?.messages]);
 
-  const openInbox = (friend: Friend) => {
-    setInboxFriends((prev) => {
-      const exists = prev.find((f) => f.id === friend.id);
-      if (exists) return prev;
-      return [friend, ...prev];
+  const handleSummarize = async () => {
+  if (!activeFriend) return;
+
+  // Lấy tin chưa đọc
+  const unreadMessages = activeFriend.messages
+    .filter((m) => !m.fromMe && !m.seen)
+    .map((m) => m.text)
+    .join("\n");
+
+  if (!unreadMessages.trim()) {
+    setSummary("Không có tin nhắn chưa đọc nào để tóm tắt 💤");
+    return;
+  }
+
+  try {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/ai/summarize`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: unreadMessages }),
     });
-    setActiveFriend(friend);
-  };
 
-  const handleSend = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || !activeFriend) return;
-
-    setInboxFriends((prev) =>
-      prev.map((f) =>
-        f.id === activeFriend.id
-          ? { ...f, messages: [...f.messages, { fromMe: true, text: input }] }
-          : f
-      )
-    );
-    setActiveFriend((prev) =>
-      prev
-        ? {
-            ...prev,
-            messages: [...prev.messages, { fromMe: true, text: input }],
-          }
-        : null
-    );
-    setInput("");
-  };
-
-  const handleDelete = (id: number) => {
-    setInboxFriends((prev) => prev.filter((f) => f.id !== id));
-    if (activeFriend?.id === id) {
-      setActiveFriend(null);
+    if (!res.ok) {
+      setSummary(" Lỗi máy chủ khi tóm tắt nội dung");
+      return;
     }
+
+    const data = await res.json();
+    const summaryText = data?.summary?.trim();
+
+    if (summaryText) {
+      setSummary(` ${summaryText}`);
+    } else {
+      setSummary("🤔 Không có nội dung nào để tóm tắt hoặc AI không hiểu được tin nhắn này.");
+    }
+  } catch (err) {
+    console.error("Summarize error:", err);
+    setSummary("❌ Lỗi kết nối khi tóm tắt nội dung");
+  }
+};
+
+    /** Gửi tin nhắn text */
+    const handleSend = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!activeFriend || !input.trim()) return;
+      sendMessage(String(activeFriend.id), input.trim());
+      setInput("");
+    };
+
+  /** Gửi tin nhắn voice */
+  const handleVoiceFinish = async ({ id, audio }: { id: string; audio: Blob }) => {
+  if (!activeFriend) return;
+
+    const file = new File([audio], "voice-message.webm", { type: "audio/webm" });
+    const audioURL = URL.createObjectURL(file);
+
+    // Gửi audio qua server (upload trước nếu cần)
+    sendMessage(String(activeFriend.id), "[Voice message 🎧]", "audio", audioURL);
   };
+  
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+
+    if (!nearBottom || !activeFriend || !socket || !user?.id) return;
+
+    const lastIncoming = [...activeFriend.messages]
+      .reverse()
+      .find((m) => !m.fromMe && !m.seen);
+
+    if (!lastIncoming) return;
+
+    socket.emit("markAsSeen", {
+      userId: user.id,
+      friendId: Number(activeFriend.id),
+    });
+  };
+  useEffect(() => {
+    setSummary(null);
+  }, [activeFriend?.id]);
+  useEffect(() => {
+    if (!activeFriend || !chatBoxRef.current) return;
+
+    const container = chatBoxRef.current;
+
+    // Tìm index tin chưa đọc đầu tiên (không phải của mình)
+    const firstUnreadIndex = activeFriend.messages.findIndex(
+      (m) => !m.fromMe && !m.seen
+    );
+
+    if (firstUnreadIndex === -1) {
+      // Nếu không có tin chưa đọc => scroll xuống cuối như bình thường
+      container.scrollTop = container.scrollHeight;
+      return;
+    }
+
+    // Tìm element của tin chưa đọc đầu tiên
+    const targetEl = container.querySelector(
+      `[data-message-index="${firstUnreadIndex}"]`
+    ) as HTMLElement | null;
+
+    if (targetEl) {
+      const offsetTop = targetEl.offsetTop - container.clientHeight / 4;
+      container.scrollTo({ top: offsetTop, behavior: "smooth" });
+    }
+  }, [activeFriend]);
+  /** Component bạn bè sidebar */
+  const FriendItem = ({ friend }: { friend: Friend }) => {
+    const hasUnread = friend.messages.some((m) => !m.fromMe && !m.seen);
+    return (
+      <div
+        onClick={() => openChat(friend)}
+        className={`flex flex-col p-2 rounded-lg cursor-pointer transition ${
+          activeFriend?.id === friend.id
+            ? "bg-blue-100"
+            : "hover:bg-slate-200"
+        }`}
+      >
+        <div className="flex items-center gap-3 min-h-[56px]">
+          {/* Avatar + trạng thái */}
+          <div className="relative flex-shrink-0">
+            <Image
+              src={friend.avatar || "/logo.png"}
+              alt={friend.name}
+              width={40}
+              height={40}
+              className="rounded-full object-cover w-10 h-10 flex-shrink-0"
+            />
+            <span
+              className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white ${
+                friend.online ? "bg-green-500" : "bg-gray-400"
+              }`}
+            />
+          </div>
+
+          {/* Tên + tin nhắn cuối */}
+          <div className="flex-1 min-w-0">
+            <p className="font-medium text-slate-800 truncate">{friend.name}</p>
+            {friend.lastMessage ? (
+              <p
+                className={`text-xs truncate ${
+                  hasUnread ? "text-blue-500 font-medium" : "text-slate-500"
+                }`}
+              >
+                {friend.lastMessage.text}
+              </p>
+            ) : (
+              <p className="text-xs text-slate-500">
+                {friend.online ? "Online" : "Offline"}
+              </p>
+            )}
+          </div>
+
+          {/* Thời gian */}
+          {friend.lastMessage && (
+            <span className="text-xs text-slate-400 flex-shrink-0 self-start">
+              {formatTime(friend.lastMessage.timestamp)}
+            </span>
+          )}
+        </div>
+
+      </div>
+    );
+  };
+
+  const onlineFriends = friends.filter(f => f.online);
+  const conversationFriends = friends
+  .filter(f => f.messages.length > 0)
+  .sort((a, b) => (b.lastMessage?.timestamp || 0) - (a.lastMessage?.timestamp || 0));
+
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] rounded-xl border border-slate-200 bg-white shadow-md overflow-hidden">
-      {/* Thanh bạn bè ngang */}
-      <div className="flex gap-4 p-4 border-b border-slate-200 overflow-x-auto">
-        {allFriends.map((friend) => (
+    <>
+      {/* Top avatar bar */}
+      <div className="flex gap-2 overflow-x-auto border-b p-2 bg-slate-100">
+        {friends.slice(0, 20).map(f => (
           <div
-            key={friend.id}
-            className="flex flex-col items-center cursor-pointer"
-            onClick={() => openInbox(friend)}
+            key={f.id}
+            onClick={() => openChat(f)}
+            className={`flex flex-col items-center cursor-pointer transition p-1 rounded ${
+              activeFriend?.id === f.id ? "bg-blue-200" : "hover:bg-slate-200"
+            }`}
           >
             <div className="relative">
-              <img
-                src={friend.avatar}
-                alt={friend.name}
-                className="h-12 w-12 rounded-full object-cover"
+              <Image
+                src={f.avatar || "/logo.png"}
+                alt={f.name}
+                width={40}
+                height={40}
+                className="rounded-full object-cover"
               />
               <span
                 className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white ${
-                  friend.online ? "bg-green-500" : "bg-gray-400"
+                  f.online ? "bg-green-500" : "bg-gray-400"
                 }`}
-              ></span>
+              />
             </div>
-            <span className="text-xs mt-1 text-slate-700">{friend.name}</span>
+            <p className="text-xs text-slate-700 truncate w-12 text-center">
+              {f.name}
+            </p>
           </div>
         ))}
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
-        {/* Danh sách inbox */}
-        <aside className="w-80 border-r border-slate-200 bg-slate-50 overflow-y-auto">
-          <h2 className="px-4 py-3 text-lg font-semibold text-slate-700">
-            Inbox
-          </h2>
-          <nav className="flex flex-col gap-1 px-2">
-            {inboxFriends.map((friend) => (
-              <div
-                key={friend.id}
-                className={`flex items-center justify-between gap-2 rounded-lg px-3 py-2 hover:bg-slate-200 transition ${
-                  activeFriend?.id === friend.id ? "bg-slate-200" : ""
-                }`}
-              >
-                <div
-                  className="flex items-center gap-3 flex-1 cursor-pointer"
-                  onClick={() => setActiveFriend(friend)}
-                >
-                  <div className="relative">
-                    <img
-                      src={friend.avatar}
-                      alt={friend.name}
-                      className="h-10 w-10 rounded-full object-cover"
-                    />
-                    <span
-                      className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white ${
-                        friend.online ? "bg-green-500" : "bg-gray-400"
-                      }`}
-                    ></span>
-                  </div>
-                  <div className="overflow-hidden">
-                    <h6 className="font-medium text-slate-800">
-                      {friend.name}
-                    </h6>
-                    <p className="truncate text-sm text-slate-500">
-                      {friend.messages.at(-1)?.text || "No messages yet"}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => handleDelete(friend.id)}
-                  className="text-slate-400 hover:text-red-500 transition"
-                  title="Xóa cuộc trò chuyện"
-                >
-                  🗑
-                </button>
-              </div>
+      {/* Layout */}
+      <div className="flex h-[calc(100vh-4rem)] border rounded-xl bg-white shadow">
+        {/* Sidebar */}
+        <aside className="w-64 border-r bg-slate-50 p-4 flex flex-col">
+          {/* <h2 className="font-semibold text-slate-700 mb-3">Friends Online</h2>
+          <div className="space-y-2 overflow-y-auto flex-1">
+            {onlineFriends.map(f => (
+              <FriendItem key={f.id} friend={f} />
             ))}
-          </nav>
+          </div> */}
+
+          <h2 className="font-semibold text-slate-700 mt-4 mb-3">
+            Conversations
+          </h2>
+          <div className="space-y-2 overflow-y-auto flex-1">
+            {conversationFriends.map(f => (
+              <FriendItem key={f.id} friend={f} />
+            ))}
+          </div>
         </aside>
 
-        {/* Hộp chat */}
+        {/* Chat Box */}
         <section className="flex-1 flex flex-col">
           {activeFriend ? (
             <>
-              <div className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-3">
-                <div className="relative">
-                  <img
-                    src={activeFriend.avatar}
-                    alt={activeFriend.name}
-                    className="h-8 w-8 rounded-full object-cover"
-                  />
-                  <span
-                    className={`absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white ${
-                      activeFriend.online ? "bg-green-500" : "bg-gray-400"
-                    }`}
-                  ></span>
-                </div>
+              {/* Header */}
+              <div className="flex items-center gap-3 border-b px-4 py-3">
+                <Image
+                  src={activeFriend.avatar || "/logo.png"}
+                  alt={activeFriend.name}
+                  width={32}
+                  height={32}
+                  className="rounded-full object-cover"
+                />
                 <h3 className="font-semibold text-slate-800">
                   {activeFriend.name}
                 </h3>
+                <span
+                  className={`ml-2 h-2.5 w-2.5 rounded-full ${
+                    activeFriend.online ? "bg-green-500" : "bg-gray-400"
+                  }`}
+                />
               </div>
 
-              <div className="flex-1 overflow-y-auto bg-slate-50 p-4 space-y-3">
-                {activeFriend.messages.length === 0 && (
+              {/* Messages */}
+              <div
+                  ref={chatBoxRef}
+                  className="flex-1 p-4 bg-slate-50 overflow-y-auto space-y-3"
+                  id="chat-scroll-box"
+                  onScroll={handleScroll}
+                >
+                {activeFriend.messages.length === 0 ? (
                   <p className="text-center text-slate-400 text-sm">
                     No messages yet
                   </p>
+                ) : (
+                  activeFriend.messages.map((m,idx) => (
+                    
+                    <div
+                      key={m.id}
+                      data-message-index={idx}
+                      className={`flex w-full ${
+                        m.fromMe ? "justify-end" : "justify-start"
+                      }`}
+                    >
+                    
+                      <div
+                        className={`inline-block break-words whitespace-pre-wrap max-w-[60%] rounded-2xl px-3 py-2 text-sm shadow relative ${
+                          m.fromMe
+                            ? "bg-blue-500 text-white"
+                            : "bg-white text-slate-800"
+                        }`}
+                      >
+                        {m.type === "audio" && m.mediaUrl ? (
+                          <AudioMessage audioUrl={m.mediaUrl} />
+                        ) : (
+                          <p className="leading-snug">{m.text}</p>
+                        )}
+
+                        <div
+                          className={`flex items-center gap-2 mt-1 text-[10px] ${
+                            m.fromMe
+                              ? "text-blue-100 justify-end"
+                              : "text-slate-400 justify-start"
+                          }`}
+                        >
+                          <span>{formatTime(m.timestamp)}</span>
+                          {m.fromMe && (
+                            <>
+                              {m.seen ? (
+                                <CheckCheck
+                                  size={12}
+                                  className="text-blue-200"
+                                />
+                              ) : (
+                                <Check size={12} />
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))
                 )}
-                {activeFriend.messages.map((m, i) => (
-  <div
-    key={i}
-    className={`max-w-[40%] rounded-lg p-3 text-sm shadow ${
-      m.fromMe
-        ? "ml-auto bg-blue-500 text-white"
-        : "bg-white text-slate-800"
-    }`}
-  >
-    {m.text}
-  </div>
-))}
-
+                <div ref={messagesEndRef} />
               </div>
+              {summary && (
+                  <div className="relative bg-yellow-50 border border-yellow-200 text-yellow-800 p-3 mx-4 mb-2 rounded-lg text-sm">
+                    <button
+                      onClick={() => setSummary(null)}
+                      className="absolute top-1 right-2 text-yellow-700 hover:text-red-500 font-bold"
+                      title="Close"
+                    >
+                      ×
+                    </button>
+                    {summary}
+                  </div>
+                )}
 
+              {/* Input */}
               <form
                 onSubmit={handleSend}
-                className="border-t border-slate-200 bg-white p-3 flex gap-2"
+                className="border-t p-3 flex gap-2 bg-white"
               >
                 <input
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  type="text"
                   placeholder="Type a message..."
-                  className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  className="flex-1 border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none"
                 />
+
+                <AudioRecorder onFinish={handleVoiceFinish} />
+
+                <button
+                  type="button"
+                  onClick={handleSummarize}
+                  className="bg-purple-500 text-white px-3 py-2 rounded-lg hover:bg-purple-600 flex items-center justify-center"
+                  title="Summarize unread messages"
+                >
+                  <Layers2 size={18}/>
+                </button>
+
                 <button
                   type="submit"
-                  className="rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 transition"
+                  className="bg-blue-500 text-white px-3 py-2 rounded-lg hover:bg-blue-600 flex items-center justify-center"
+                  title="Send Message"
                 >
-                  Send
+                  <SendHorizonal size={18} />
                 </button>
               </form>
             </>
           ) : (
             <div className="flex flex-1 items-center justify-center text-slate-400">
-              <p>Select a conversation 💬</p>
+              <p>Select a friend to chat 💬</p>
             </div>
           )}
         </section>
       </div>
-    </div>
+    </>
   );
 }

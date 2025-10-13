@@ -1,22 +1,99 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
-  output   = "../generated/prisma"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
+  id                Int             @id @default(autoincrement())
+  name              String
+  email             String          @unique
+  password          String
+  avatar            String?
+  bio               String?
+  role              String?
+  online            Boolean         @default(false)
+  lastSeen          DateTime?
+  createdAt         DateTime        @default(now())
+  ggid              String?         @unique
+  otpCode           String?
+  otpExpiresAt      DateTime?
+  twoFactorEnabled  Boolean         @default(false)
+  receivedRequests  FriendRequest[] @relation("ReceivedRequests")
+  sentRequests      FriendRequest[] @relation("SentRequests")
+  friendshipsA      Friendship[]    @relation("friendsA")
+  friendshipsB      Friendship[]    @relation("friendsB")
+  messagesReceived  Message[]       @relation("ReceivedMessages")
+  messagesSent      Message[]       @relation("SentMessages")
+  sentNotifications Notification[]  @relation("SentNotifications")
+  notifications     Notification[]  @relation("UserNotifications")
+  posts             Post[]
+}
+
+model Message {
+  id         Int      @id @default(autoincrement())
+  content    String
+  createdAt  DateTime @default(now())
+  seen       Boolean  @default(false)
+  senderId   Int
+  receiverId Int
+  mediaUrl   String?
+  type       String   @default("text")
+  receiver   User     @relation("ReceivedMessages", fields: [receiverId], references: [id])
+  sender     User     @relation("SentMessages", fields: [senderId], references: [id])
+}
+
+model Friendship {
   id        Int      @id @default(autoincrement())
-  name      String
-  email     String   @unique
+  userAId   Int
+  userBId   Int
   createdAt DateTime @default(now())
+  userA     User     @relation("friendsA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB     User     @relation("friendsB", fields: [userBId], references: [id], onDelete: Cascade)
+
+  @@unique([userAId, userBId])
+  @@index([userAId])
+  @@index([userBId])
+}
+
+model Post {
+  id          Int      @id @default(autoincrement())
+  description String
+  imageUrl    String?
+  createdAt   DateTime @default(now())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+model FriendRequest {
+  id         Int      @id @default(autoincrement())
+  senderId   Int
+  receiverId Int
+  status     String   @default("pending")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  receiver   User     @relation("ReceivedRequests", fields: [receiverId], references: [id])
+  sender     User     @relation("SentRequests", fields: [senderId], references: [id])
+
+  @@unique([senderId, receiverId])
+  @@index([senderId])
+  @@index([receiverId])
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  senderId  Int?
+  type      String
+  title     String
+  content   String?
+  link      String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  sender    User?    @relation("SentNotifications", fields: [senderId], references: [id])
+  user      User     @relation("UserNotifications", fields: [userId], references: [id])
 }
