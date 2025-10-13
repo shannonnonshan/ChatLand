@@ -149,7 +149,7 @@ export class UsersService {
         email: user.email, 
         name: user.name, 
         role: user.role, 
-        twoFactorEnabled: user.twoFactorEnabled 
+        twoFactorEnabled: user.twoFactorEnabled
       },
       token,
     };
@@ -256,6 +256,7 @@ export class UsersService {
       },
       take: limit,
       select: { id: true, name: true, avatar: true },
+      orderBy: { createdAt: 'desc' },
     });
 
     return suggestions;

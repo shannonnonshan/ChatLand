@@ -6,14 +6,17 @@ import { ChatModule } from './chat/chat.module';
 import { PostsModule } from './posts/posts.module';
 import { UsersModule } from './users/users.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { AiModule } from './ai/ai.module';
+import { SpeechModule } from './speech/speech.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
-      isGlobal: true, // 👈 để module nào cũng dùng được biến môi trường
+      isGlobal: true,
     }),
-    ChatModule,
-    PostsModule, UsersModule, PrismaModule],
+    ChatModule, AiModule,
+    PostsModule, UsersModule, PrismaModule, SpeechModule, AdminModule],
   controllers: [AppController],
   providers: [AppService],
 })

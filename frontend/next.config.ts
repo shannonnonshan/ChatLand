@@ -26,6 +26,7 @@ const baseConfig = {
         hostname: '**', // cho phép tất cả domain HTTP
       },
     ],
+    domains: ['upload.wikimedia.org', 'cdn-icons-png.flaticon.com','lh3.googleusercontent.com'],
   },
 
   async headers() {

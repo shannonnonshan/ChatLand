@@ -2,34 +2,73 @@
 
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
-import { SendHorizonal, CheckCheck, Check } from "lucide-react";
+import { SendHorizonal, CheckCheck, Check, Layers2 } from "lucide-react";
 import { useChat, Friend, Message } from "@/hooks/useChat";
 import { useAuth } from "@/context/AuthContext";
 import AudioRecorder from "../components/AudioRecoder";
 import AudioMessage from "../components/AudioMessage";
 import { formatTime } from "@/utils/formatTime";
 import { span } from "framer-motion/client";
+
 export default function InboxPage() {
   const { user } = useAuth();
-  const { friends, activeFriend, openChat, sendMessage } = useChat();
+  const { friends, activeFriend, openChat, sendMessage, socket } = useChat();
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
-  const socketRef = useRef<unknown>(null); // optional: mark seen emit socket
-  
+  const [summary, setSummary] = useState<string | null>(null);
+  const chatBoxRef = useRef<HTMLDivElement | null>(null);
   // Scroll xuống cuối khi có tin nhắn mới
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [activeFriend?.messages]);
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, [activeFriend?.messages]);
 
+  const handleSummarize = async () => {
+  if (!activeFriend) return;
 
+  // Lấy tin chưa đọc
+  const unreadMessages = activeFriend.messages
+    .filter((m) => !m.fromMe && !m.seen)
+    .map((m) => m.text)
+    .join("\n");
 
-  /** Gửi tin nhắn text */
-  const handleSend = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!activeFriend || !input.trim()) return;
-    sendMessage(String(activeFriend.id), input.trim());
-    setInput("");
-  };
+  if (!unreadMessages.trim()) {
+    setSummary("Không có tin nhắn chưa đọc nào để tóm tắt 💤");
+    return;
+  }
+
+  try {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/ai/summarize`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: unreadMessages }),
+    });
+
+    if (!res.ok) {
+      setSummary(" Lỗi máy chủ khi tóm tắt nội dung");
+      return;
+    }
+
+    const data = await res.json();
+    const summaryText = data?.summary?.trim();
+
+    if (summaryText) {
+      setSummary(` ${summaryText}`);
+    } else {
+      setSummary("🤔 Không có nội dung nào để tóm tắt hoặc AI không hiểu được tin nhắn này.");
+    }
+  } catch (err) {
+    console.error("Summarize error:", err);
+    setSummary("❌ Lỗi kết nối khi tóm tắt nội dung");
+  }
+};
+
+    /** Gửi tin nhắn text */
+    const handleSend = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!activeFriend || !input.trim()) return;
+      sendMessage(String(activeFriend.id), input.trim());
+      setInput("");
+    };
 
   /** Gửi tin nhắn voice */
   const handleVoiceFinish = async ({ id, audio }: { id: string; audio: Blob }) => {
@@ -41,29 +80,53 @@ export default function InboxPage() {
     // Gửi audio qua server (upload trước nếu cần)
     sendMessage(String(activeFriend.id), "[Voice message 🎧]", "audio", audioURL);
   };
-
-  /** Khi user scroll đến cuối => mark seen */
+  
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
-    const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 20;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
 
-    if (nearBottom && activeFriend) {
-      const unread = activeFriend.messages.filter(
-        (m) => !m.fromMe && !m.seen
-      );
-      if (unread.length > 0) {
-        fetch(`${process.env.NEXT_PUBLIC_API_URL}/messages/mark-seen`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            userId: user?.id,
-            friendId: Number(activeFriend.id),
-          }),
-        }).catch((err) => console.error("Mark seen error:", err));
-      }
-    }
+    if (!nearBottom || !activeFriend || !socket || !user?.id) return;
+
+    const lastIncoming = [...activeFriend.messages]
+      .reverse()
+      .find((m) => !m.fromMe && !m.seen);
+
+    if (!lastIncoming) return;
+
+    socket.emit("markAsSeen", {
+      userId: user.id,
+      friendId: Number(activeFriend.id),
+    });
   };
+  useEffect(() => {
+    setSummary(null);
+  }, [activeFriend?.id]);
+  useEffect(() => {
+    if (!activeFriend || !chatBoxRef.current) return;
 
+    const container = chatBoxRef.current;
+
+    // Tìm index tin chưa đọc đầu tiên (không phải của mình)
+    const firstUnreadIndex = activeFriend.messages.findIndex(
+      (m) => !m.fromMe && !m.seen
+    );
+
+    if (firstUnreadIndex === -1) {
+      // Nếu không có tin chưa đọc => scroll xuống cuối như bình thường
+      container.scrollTop = container.scrollHeight;
+      return;
+    }
+
+    // Tìm element của tin chưa đọc đầu tiên
+    const targetEl = container.querySelector(
+      `[data-message-index="${firstUnreadIndex}"]`
+    ) as HTMLElement | null;
+
+    if (targetEl) {
+      const offsetTop = targetEl.offsetTop - container.clientHeight / 4;
+      container.scrollTo({ top: offsetTop, behavior: "smooth" });
+    }
+  }, [activeFriend]);
   /** Component bạn bè sidebar */
   const FriendItem = ({ friend }: { friend: Friend }) => {
     const hasUnread = friend.messages.some((m) => !m.fromMe && !m.seen);
@@ -76,14 +139,15 @@ export default function InboxPage() {
             : "hover:bg-slate-200"
         }`}
       >
-        <div className="flex items-center gap-3">
-          <div className="relative">
+        <div className="flex items-center gap-3 min-h-[56px]">
+          {/* Avatar + trạng thái */}
+          <div className="relative flex-shrink-0">
             <Image
               src={friend.avatar || "/logo.png"}
               alt={friend.name}
               width={40}
               height={40}
-              className="rounded-full object-cover"
+              className="rounded-full object-cover w-10 h-10 flex-shrink-0"
             />
             <span
               className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white ${
@@ -91,8 +155,10 @@ export default function InboxPage() {
               }`}
             />
           </div>
-          <div className="flex-1">
-            <p className="font-medium text-slate-800">{friend.name}</p>
+
+          {/* Tên + tin nhắn cuối */}
+          <div className="flex-1 min-w-0">
+            <p className="font-medium text-slate-800 truncate">{friend.name}</p>
             {friend.lastMessage ? (
               <p
                 className={`text-xs truncate ${
@@ -107,21 +173,24 @@ export default function InboxPage() {
               </p>
             )}
           </div>
+
+          {/* Thời gian */}
           {friend.lastMessage && (
-            <span className="text-xs text-slate-400">
+            <span className="text-xs text-slate-400 flex-shrink-0 self-start">
               {formatTime(friend.lastMessage.timestamp)}
             </span>
           )}
         </div>
+
       </div>
     );
   };
 
   const onlineFriends = friends.filter(f => f.online);
-  const conversationFriends = [
-    ...friends.filter(f => f.messages.length > 0 && !f.online && f.id !== activeFriend?.id),
-    ...(activeFriend ? [activeFriend] : [])
-  ].sort((a, b) => (b.lastMessage?.timestamp || 0) - (a.lastMessage?.timestamp || 0));
+  const conversationFriends = friends
+  .filter(f => f.messages.length > 0)
+  .sort((a, b) => (b.lastMessage?.timestamp || 0) - (a.lastMessage?.timestamp || 0));
+
 
   return (
     <>
@@ -202,19 +271,21 @@ export default function InboxPage() {
 
               {/* Messages */}
               <div
-                className="flex-1 p-4 bg-slate-50 overflow-y-auto space-y-3"
-                id="chat-scroll-box"
-                onScroll={handleScroll}
-              >
+                  ref={chatBoxRef}
+                  className="flex-1 p-4 bg-slate-50 overflow-y-auto space-y-3"
+                  id="chat-scroll-box"
+                  onScroll={handleScroll}
+                >
                 {activeFriend.messages.length === 0 ? (
                   <p className="text-center text-slate-400 text-sm">
                     No messages yet
                   </p>
                 ) : (
-                  activeFriend.messages.map((m) => (
+                  activeFriend.messages.map((m,idx) => (
                     
                     <div
                       key={m.id}
+                      data-message-index={idx}
                       className={`flex w-full ${
                         m.fromMe ? "justify-end" : "justify-start"
                       }`}
@@ -260,6 +331,18 @@ export default function InboxPage() {
                 )}
                 <div ref={messagesEndRef} />
               </div>
+              {summary && (
+                  <div className="relative bg-yellow-50 border border-yellow-200 text-yellow-800 p-3 mx-4 mb-2 rounded-lg text-sm">
+                    <button
+                      onClick={() => setSummary(null)}
+                      className="absolute top-1 right-2 text-yellow-700 hover:text-red-500 font-bold"
+                      title="Close"
+                    >
+                      ×
+                    </button>
+                    {summary}
+                  </div>
+                )}
 
               {/* Input */}
               <form
@@ -274,6 +357,15 @@ export default function InboxPage() {
                 />
 
                 <AudioRecorder onFinish={handleVoiceFinish} />
+
+                <button
+                  type="button"
+                  onClick={handleSummarize}
+                  className="bg-purple-500 text-white px-3 py-2 rounded-lg hover:bg-purple-600 flex items-center justify-center"
+                  title="Summarize unread messages"
+                >
+                  <Layers2 size={18}/>
+                </button>
 
                 <button
                   type="submit"

@@ -9,6 +9,7 @@ interface User {
   name?: string;
   avatarUrl?: string;
   twoFactorEnabled?: boolean; // check 2FA
+  role?:string
 }
 
 interface AuthContextType {

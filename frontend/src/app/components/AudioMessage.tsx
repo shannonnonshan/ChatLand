@@ -1,26 +1,24 @@
 "use client";
-import React from "react";
+import React, { useRef, useState } from "react";
 import { Play, Pause, Languages } from "lucide-react";
 
 interface AudioMessageProps {
-  audioUrl: string;
+  audioUrl: string; // blob hoặc public URL
 }
 
 const AudioMessage: React.FC<AudioMessageProps> = ({ audioUrl }) => {
-  const [isPlaying, setIsPlaying] = React.useState(false);
-  const [duration, setDuration] = React.useState(0);
-  const [currentTime, setCurrentTime] = React.useState(0);
-  const [isConverting, setIsConverting] = React.useState(false);
-  const [transcribedText, setTranscribedText] = React.useState<string | null>(null);
-  const [summary, setSummary] = React.useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [duration, setDuration] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [isConverting, setIsConverting] = useState(false);
+  const [transcribedText, setTranscribedText] = useState<string | null>(null);
+  const [summary, setSummary] = useState<string | null>(null);
 
-  const audioRef = React.useRef<HTMLAudioElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // 🔊 Play / Pause
   const togglePlay = async () => {
     const audio = audioRef.current;
     if (!audio) return;
-
     if (isPlaying) {
       audio.pause();
       setIsPlaying(false);
@@ -30,24 +28,21 @@ const AudioMessage: React.FC<AudioMessageProps> = ({ audioUrl }) => {
         setIsPlaying(true);
       } catch (err) {
         console.error("Playback failed:", err);
-        alert("⚠️ Không thể phát âm thanh. Có thể file bị lỗi hoặc định dạng không đúng.");
+        alert("⚠️ Không thể phát âm thanh.");
       }
     }
   };
 
-  // 🎵 Update progress bar
   const handleTimeUpdate = () => {
     const audio = audioRef.current;
     if (audio) setCurrentTime(audio.currentTime);
   };
 
-  // ⏱️ When loaded
   const handleLoaded = () => {
     const audio = audioRef.current;
     if (audio) setDuration(audio.duration || 0);
   };
 
-  // 🧭 Seek manually
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const audio = audioRef.current;
     if (!audio || !duration) return;
@@ -57,40 +52,41 @@ const AudioMessage: React.FC<AudioMessageProps> = ({ audioUrl }) => {
   };
 
   const formatTime = (s: number) => {
-    if (!s) return "00:00";
-    const m = Math.floor(s / 60)
-      .toString()
-      .padStart(2, "0");
-    const sec = Math.floor(s % 60)
-      .toString()
-      .padStart(2, "0");
+    const m = Math.floor(s / 60).toString().padStart(2, "0");
+    const sec = Math.floor(s % 60).toString().padStart(2, "0");
     return `${m}:${sec}`;
   };
 
-  // 🧠 Convert voice → text
   const handleConvertToText = async () => {
     try {
       setIsConverting(true);
       setTranscribedText(null);
       setSummary(null);
 
-      const res = await fetch(audioUrl);
+      // fetch audioUrl
+      const res = await fetch(audioUrl, { mode: "cors" });
+      if (!res.ok) throw new Error("Cannot fetch audio URL");
       const blob = await res.blob();
-      const formData = new FormData();
-      formData.append("file", blob, "voice-message.wav");
 
-      const response = await fetch("http://localhost:3001/voice-to-text", {
-        method: "POST",
-        body: formData,
-      });
+      // detect type: nếu backend chỉ nhận wav thì convert name
+      const fileExt = blob.type.includes("webm")
+        ? "webm"
+        : blob.type.includes("ogg")
+        ? "ogg"
+        : "wav";
+
+      const formData = new FormData();
+      formData.append("file", blob, `voice-message.${fileExt}`);
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/speech/voice-to-text`,
+        { method: "POST", body: formData }
+      );
 
       const data = await response.json();
-      if (data.text) {
-        setTranscribedText(data.text);
-        setSummary(data.summary || null);
-      } else {
-        alert("❌ Không thể nhận dạng âm thanh.");
-      }
+      if (data.text) setTranscribedText(data.text);
+      if (data.summary) setSummary(data.summary);
+      if (!data.text) alert("⚠️ Không thể nhận dạng âm thanh.");
     } catch (err) {
       console.error(err);
       alert("❌ Lỗi khi chuyển giọng nói thành văn bản.");
@@ -101,7 +97,6 @@ const AudioMessage: React.FC<AudioMessageProps> = ({ audioUrl }) => {
 
   return (
     <div className="flex flex-col gap-2 p-2 rounded-2xl bg-blue-50 border border-blue-100 w-full max-w-[280px] shadow-sm">
-      {/* Player row */}
       <div className="flex items-center gap-3 w-full">
         <button
           onClick={togglePlay}
@@ -113,8 +108,8 @@ const AudioMessage: React.FC<AudioMessageProps> = ({ audioUrl }) => {
         <div className="flex flex-col flex-1">
           <input
             type="range"
-            min="0"
-            max="100"
+            min={0}
+            max={100}
             value={duration ? (currentTime / duration) * 100 : 0}
             onChange={handleSeek}
             className="w-full accent-blue-500 cursor-pointer"
@@ -145,15 +140,17 @@ const AudioMessage: React.FC<AudioMessageProps> = ({ audioUrl }) => {
         />
       </div>
 
+      {isConverting && (
+        <p className="text-sm text-gray-500">Detecting text...</p>
+      )}
       {transcribedText && (
         <p className="text-sm text-gray-700 bg-white border rounded-lg p-2 whitespace-pre-wrap">
-          🗣️ {transcribedText}
+          {transcribedText}
         </p>
       )}
-
       {summary && (
         <p className="text-sm text-blue-700 bg-blue-100 border rounded-lg p-2 whitespace-pre-wrap">
-          💡 {summary}
+          {summary}
         </p>
       )}
     </div>
