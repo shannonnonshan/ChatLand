@@ -8,7 +8,13 @@ import {
   Patch,
   Delete,
   Query,
+  UseGuards,
+  Req,
+  Res,
+  ForbiddenException
 } from '@nestjs/common';
+import { Request, Response } from 'express';
+import { AuthGuard } from '@nestjs/passport';
 import { UsersService } from './users.service';
 import { UserProfileDto } from './dto/profile.dto';
 import { SignupDto } from './dto/signup.dto';
@@ -22,7 +28,11 @@ export class UsersController {
   findAll(): Promise<UserProfileDto[]> {
     return this.usersService.findAll();
   }
-
+  @Get('me')
+  @UseGuards(AuthGuard('jwt'))
+  getMe(@Req() req: any) {
+    return req.user;
+  }
   // Lấy 1 user
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number): Promise<UserProfileDto> {
@@ -133,4 +143,36 @@ export class UsersController {
     const limit = 10; // có thể cố định hoặc lấy thêm param khác
     return this.usersService.getFriendSuggestions(userId, limit);
   } 
+  @Get('login/googleAuth')
+  @UseGuards(AuthGuard('google'))
+  async googleAuth() {
+  }
+
+  @Get('login/googleAuth/callback')
+  @UseGuards(AuthGuard('google'))
+  async googleAuthRedirect(@Req() req: Request, @Res() res: Response) {
+    const googleUser = req.user as any;
+
+    const result = await this.usersService.googleLogin(googleUser);
+
+    // ✅ result có: { access_token, user }
+    return res.redirect(
+      `http://localhost:3000/oauth/success?token=${result.access_token}`,
+    );
+  }
+   @Patch(':id/2fa')
+  @UseGuards(AuthGuard('jwt'))
+  async updateTwoFA(
+    @Param('id', ParseIntPipe) id: number,
+    @Body('twoFactorEnabled') twoFactorEnabled: boolean, // phải giống frontend
+    @Req() req: any, // để lấy thông tin user từ JWT
+  ) {
+    // Kiểm tra quyền: chỉ user chính chủ mới được chỉnh 2FA
+    if (req.user.id !== id) {
+      throw new ForbiddenException("Bạn không được phép chỉnh sửa 2FA của user khác");
+    }
+
+    // Cập nhật DB và trả về giá trị mới
+    return this.usersService.updateTwoFA(id, twoFactorEnabled);
+  }
 }

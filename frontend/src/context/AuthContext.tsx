@@ -8,12 +8,14 @@ interface User {
   email: string;
   name?: string;
   avatarUrl?: string;
+  twoFactorEnabled?: boolean; // check 2FA
 }
 
 interface AuthContextType {
   user: User | null;
   token: string | null;
   socket: Socket | null;
+  isAuthenticated: boolean;
   setAuth: (user: User, token: string) => void;
   logout: () => void;
 }
@@ -25,45 +27,60 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [socket, setSocket] = useState<Socket | null>(null);
   const router = useRouter();
+  const socketRef = useRef<Socket | null>(null);
 
-  // Load from localStorage on mount
+  const isAuthenticated = !!user && !!token;
+
+  // Load auth from localStorage on mount
   useEffect(() => {
     const savedUser = localStorage.getItem("user");
     const savedToken = localStorage.getItem("token");
     if (savedUser && savedToken) {
-      const parsedUser = JSON.parse(savedUser);
+      const parsedUser: User = JSON.parse(savedUser);
       setUser(parsedUser);
       setToken(savedToken);
-      initSocket(parsedUser.id);
+      initSocket(parsedUser.id, savedToken);
     }
   }, []);
 
   // Initialize Socket.IO
-  const initSocket = (userId: number) => {
-    const s = io(process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3002");
+  const initSocket = (userId: number, authToken?: string) => {
+    // disconnect old socket if exists
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+    }
+
+    const s = io(process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3002", {
+      auth: { token: authToken || token },
+    });
+
     s.on("connect", () => {
       s.emit("register", userId); // thông báo server user đang online
     });
+
+    s.on("disconnect", () => {
+      console.log("Socket disconnected");
+    });
+
+    socketRef.current = s;
     setSocket(s);
   };
 
-  const setAuth = (user: User, token: string) => {
-    setUser(user);
-    setToken(token);
-    localStorage.setItem("user", JSON.stringify(user));
-    localStorage.setItem("token", token);
+  const setAuth = (newUser: User, newToken: string) => {
+    setUser(newUser);
+    setToken(newToken);
+    localStorage.setItem("user", JSON.stringify(newUser));
+    localStorage.setItem("token", newToken);
 
     // Reconnect socket for new user
-    if (socket) {
-      socket.disconnect();
-    }
-    initSocket(user.id);
+    initSocket(newUser.id, newToken);
   };
 
   const logout = () => {
     // Disconnect socket
-    if (socket) {
-      socket.disconnect();
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+      socketRef.current = null;
       setSocket(null);
     }
 
@@ -73,20 +90,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem("user");
     localStorage.removeItem("token");
 
-    // Reset app-level state if needed (e.g., friends, active chat)
-    // You can also trigger a global state reset here
-
-    // Redirect to home
     router.push("/");
     router.refresh();
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, socket, setAuth, logout }}>
+    <AuthContext.Provider value={{ user, token, socket, setAuth, logout, isAuthenticated }}>
       {children}
     </AuthContext.Provider>
   );
-}
+};
 
 export const useAuth = () => {
   const ctx = useContext(AuthContext);
