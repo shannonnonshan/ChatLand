@@ -16,7 +16,7 @@ model User {
   password          String
   avatar            String?
   bio               String?
-  role              String?
+  role              String          @default("user")
   online            Boolean         @default(false)
   lastSeen          DateTime?
   createdAt         DateTime        @default(now())

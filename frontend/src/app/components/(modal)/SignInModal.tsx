@@ -4,6 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
 import OtpModal from "./OtpModal";
+import { useRouter } from "next/navigation";
 
 export default function SignInModal({
   onClose,
@@ -12,8 +13,9 @@ export default function SignInModal({
 }: {
   onClose: () => void;
   onSwitchToSignUp: () => void;
-  onSignIn?: (user: { id: number; email: string; name?: string; avatarUrl?: string }) => void;
+  onSignIn?: (user: { id: number; email: string; name?: string; avatarUrl?: string; role?: string }) => void;
 }) {
+  const router = useRouter();
   const { setAuth } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -51,10 +53,18 @@ export default function SignInModal({
         return;
       }
 
-      // Nếu không cần OTP → login thẳng
+      // --- LOGIN THÀNH CÔNG ---
       setAuth(data.user, data.token);
       onSignIn?.(data.user);
       onClose();
+
+      // --- Redirect theo role ---
+      if (data.user.role === 'admin') {
+        router.push('/admin');
+      } else {
+        router.push('/');
+      }
+
     } catch (err) {
       console.error(err);
       setError("Something went wrong");
@@ -90,6 +100,14 @@ export default function SignInModal({
       onClose();
       setRequiresOtp(false);
       setTempUserData(null);
+
+      // --- Redirect theo role sau OTP ---
+      if (data.user.role === 'admin') {
+        router.push('/admin');
+      } else {
+        router.push('/');
+      }
+
     } catch (err) {
       console.error(err);
       setError("Something went wrong");

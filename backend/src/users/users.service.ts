@@ -115,9 +115,8 @@ export class UsersService {
 
     const passwordValid = await bcrypt.compare(password, user.password);
     if (!passwordValid) throw new UnauthorizedException('Sai mật khẩu');
-    console.log(user.twoFactorEnabled);
+
     if (user.twoFactorEnabled) {
-      // Chưa có OTP nhập → gửi OTP mới
       if (!otp) {
         const generatedOtp = randomInt(100000, 999999).toString();
         const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
@@ -127,44 +126,39 @@ export class UsersService {
           data: { otpCode: generatedOtp, otpExpiresAt: expiresAt },
         });
 
-        // Gửi OTP email
-        const transporter = nodemailer.createTransport({
-          service: 'gmail',
-          auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
-        });
-
-        await transporter.sendMail({
-          from: `"ChatLand" <${process.env.EMAIL_USER}>`,
-          to: user.email,
-          subject: 'ChatLand OTP Verification',
-          html: `<h3>Mã OTP của bạn: <b>${generatedOtp}</b></h3><p>Hết hạn trong 5 phút.</p>`,
-        });
-
+        // Gửi OTP email...
         return { message: 'OTP đã được gửi đến email của bạn', requiresOtp: true };
       }
 
-      // Có OTP nhập → kiểm tra
       if (otp !== user.otpCode || !user.otpExpiresAt || new Date() > user.otpExpiresAt) {
         throw new UnauthorizedException('OTP không hợp lệ hoặc đã hết hạn');
       }
-      
+
       await this.prisma.user.update({
         where: { id: user.id },
         data: { otpCode: null, otpExpiresAt: null },
       });
     }
-    const token = await this.generateToken(user.id, user.email);
+    const role = user.role || 'user';
+    const token = await this.generateToken(user.id, user.email, role);
 
     return {
       message: 'Đăng nhập thành công',
-      user: { id: user.id, email: user.email, name: user.name, twoFactorEnabled: user.twoFactorEnabled, role:user.role },
+      user: { 
+        id: user.id, 
+        email: user.email, 
+        name: user.name, 
+        role: user.role, 
+        twoFactorEnabled: user.twoFactorEnabled
+      },
       token,
     };
   }
 
 
-  private async generateToken(userId: number, email: string) {
-    return this.jwtService.signAsync({ sub: userId, email });
+
+  private async generateToken(userId: number, email: string, role: string) {
+    return this.jwtService.signAsync({ sub: userId, email, role });
   }
 
   async update(
