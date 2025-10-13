@@ -90,7 +90,6 @@ export class ChatGateway {
       this.server.to(senderSocketId).emit('messagesSeen', { by: userId });
     }
 }
-  /** Lấy lịch sử chat giữa 2 người */
   @SubscribeMessage('getHistory')
   async handleGetHistory(
     @MessageBody() payload: { userAId: number; userBId: number },

@@ -20,6 +20,10 @@ model User {
   online            Boolean         @default(false)
   lastSeen          DateTime?
   createdAt         DateTime        @default(now())
+  ggid              String?         @unique
+  otpCode           String?
+  otpExpiresAt      DateTime?
+  twoFactorEnabled  Boolean         @default(false)
   receivedRequests  FriendRequest[] @relation("ReceivedRequests")
   sentRequests      FriendRequest[] @relation("SentRequests")
   friendshipsA      Friendship[]    @relation("friendsA")

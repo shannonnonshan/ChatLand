@@ -49,12 +49,13 @@ type UseChatReturn = {
   activeFriend: Friend | null;
   openChat: (friend: Friend) => void;
   sendMessage: (
-  friendId: string,
-  text: string,
-  type?: "text" | "audio" | "image",
-  mediaUrl?: string | null
+    friendId: string,
+    text: string,
+    type?: "text" | "audio" | "image",
+    mediaUrl?: string | null
   ) => void;
   resetChat: () => void;
+  socket: Socket | null; 
 };
 
 export function useChat(): UseChatReturn {
@@ -62,7 +63,7 @@ export function useChat(): UseChatReturn {
   const [friends, setFriends] = useState<Friend[]>([]);
   const [activeFriend, setActiveFriend] = useState<Friend | null>(null);
   const socketRef = useRef<Socket | null>(null);
-
+  
   // Convert backend message → frontend message
   const toMessage = (m: BackendMessage): Message => ({
   id: m.id,
@@ -107,14 +108,13 @@ export function useChat(): UseChatReturn {
 
     fetchData();
   }, [user?.id]); 
-
+  
   // Setup Socket.IO
   useEffect(() => {
     if (!user) return;
 
     const socket = io(`${process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3002"}`);
     socketRef.current = socket;
-
     socket.on("connect", () => {
       socket.emit("register", user.id);
     });
@@ -122,7 +122,7 @@ export function useChat(): UseChatReturn {
     socket.on("userList", (userIds: number[]) => {
       setFriends(prev => prev.map(f => ({ ...f, online: userIds.includes(Number(f.id)) })));
     });
-
+    
    socket.on("privateMessage", (m: { id: string; from: string; text: string; type?: "text" | "audio" | "image"; mediaUrl?: string | null; timestamp: number;
     }) => {
       const msg: Message = { 
@@ -163,6 +163,7 @@ export function useChat(): UseChatReturn {
         } : prev);
       }
     });
+    
     socket.on("messagesSeen", ({ by }: { by: number }) => {
     setFriends(prev => prev.map(f => 
       f.id === String(by)
@@ -189,7 +190,7 @@ export function useChat(): UseChatReturn {
         } : prev
       );
     }
-  });
+    });
     // Cleanup function (correct type)
     return () => {
       socket.disconnect();
@@ -241,7 +242,8 @@ export function useChat(): UseChatReturn {
     setActiveFriend(null);
     socketRef.current?.disconnect();
     socketRef.current = null;
+    
   };
 
-  return { friends, activeFriend, openChat, sendMessage, resetChat };
+  return { friends, activeFriend, openChat, sendMessage, resetChat,socket: socketRef.current };
 }
