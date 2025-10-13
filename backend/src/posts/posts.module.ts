@@ -28,6 +28,5 @@ import { extname, join } from 'path';
   ],
   controllers: [PostsController],
   providers: [PostsService],
-  providers: [PostsService],
 })
 export class PostsModule {}
