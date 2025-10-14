@@ -8,11 +8,9 @@ export default function AuthSuccessPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { setAuth } = useAuth();
-  const fetched = useRef(false); // ✅ flag chặn gọi lại
+  //const fetched = useRef(false); 
 
   useEffect(() => {
-    if (fetched.current) return; // chỉ chạy 1 lần duy nhất
-    fetched.current = true;
 
     const token = searchParams.get("token");
 
@@ -34,10 +32,8 @@ export default function AuthSuccessPage() {
         if (!res.ok) throw new Error("Không lấy được thông tin người dùng");
         const user = await res.json();
 
-        // ✅ Lưu context + localStorage
         setAuth(user, token);
 
-        // ✅ Redirect sau 0.3s để UI kịp update
         setTimeout(() => {
           router.push("/");
         }, 300);
