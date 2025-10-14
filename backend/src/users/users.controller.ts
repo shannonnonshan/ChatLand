@@ -155,7 +155,10 @@ export class UsersController {
 
     const result = await this.usersService.googleLogin(googleUser);
 
-    // ✅ result có: { access_token, user }
+    //  result có: { access_token, user }
+    // return res.redirect(
+    //   `${`https://chat-land-git-master-minh-khanhs-projects-11c697e8.vercel.app/`}/oauth/success?token=${result.access_token}`,
+    // );
     return res.redirect(
       `http://localhost:3000/oauth/success?token=${result.access_token}`,
     );
