@@ -60,7 +60,7 @@ export default function SignInModal({
 
       // --- Redirect theo role ---
       if (data.user.role === 'admin') {
-        router.push('/admin');
+        router.push(`/admin/${data.user.id}`);
       } else {
         router.push('/');
       }
@@ -103,7 +103,7 @@ export default function SignInModal({
 
       // --- Redirect theo role sau OTP ---
       if (data.user.role === 'admin') {
-        router.push('/admin');
+        router.push('`/admin/${data.user.id}`');
       } else {
         router.push('/');
       }

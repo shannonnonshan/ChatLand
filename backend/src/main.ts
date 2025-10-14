@@ -18,10 +18,22 @@ async function bootstrap() {
   // Serve static files từ folder "uploads"
   app.useStaticAssets(join(__dirname, '..', 'uploads'), { prefix: '/uploads/' });
 
-  app.enableCors({
-    origin: 'http://localhost:3000', // frontend Next.js
-    credentials: true,
-  });
+ const allowedOrigins = [
+      'http://localhost:3000', // local dev
+      'https://chat-land-git-master-minh-khanhs-projects-11c697e8.vercel.app' // production
+    ];
+
+    app.enableCors({
+      origin: (origin, callback) => {
+        if (!origin || allowedOrigins.includes(origin)) {
+          // origin hợp lệ hoặc request từ Postman / curl (no origin)
+          callback(null, true);
+        } else {
+          callback(new Error(`Origin ${origin} not allowed by CORS`));
+        }
+      },
+      credentials: true,
+    });
 
   await app.listen(process.env.PORT ?? 5000);
 }
