@@ -541,5 +541,33 @@ async getConversations(userId: number) {
       select: { id: true, twoFactorEnabled: true },
     });
   }
+   async searchUsers(name: string, currentUserId: number) {
+    const terms = name.trim().split(/\s+/);
 
+    let users = await this.prisma.user.findMany({
+      where: {
+        NOT: { id: currentUserId },
+      },
+      select: {
+        id: true,
+        name: true,
+        avatar: true,
+        role: true,
+      },
+      take: 50,
+    });
+
+    users = users.filter((u) =>
+      terms.every((t) => u.name.toLowerCase().includes(t.toLowerCase()))
+    );
+
+    users.sort((a, b) => {
+      const term = terms[0].toLowerCase();
+      const aStarts = a.name.toLowerCase().startsWith(term) ? 0 : 1;
+      const bStarts = b.name.toLowerCase().startsWith(term) ? 0 : 1;
+      return aStarts - bStarts;
+    });
+
+    return users.slice(0, 20);
+  }
 }

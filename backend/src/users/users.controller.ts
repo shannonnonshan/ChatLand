@@ -19,6 +19,7 @@ import { UsersService } from './users.service';
 import { UserProfileDto } from './dto/profile.dto';
 import { SignupDto } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
+import { SearchUserDto } from './dto/search.dto';
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
@@ -147,7 +148,11 @@ export class UsersController {
   @UseGuards(AuthGuard('google'))
   async googleAuth() {
   }
-
+  @Post('search')
+  async searchUsers(@Body() body: SearchUserDto) {
+    const { name, currentUserId } = body;
+    return this.usersService.searchUsers(name, Number(currentUserId));
+  }
   @Get('login/googleAuth/callback')
   @UseGuards(AuthGuard('google'))
   async googleAuthRedirect(@Req() req: Request, @Res() res: Response) {
@@ -170,12 +175,10 @@ export class UsersController {
     @Body('twoFactorEnabled') twoFactorEnabled: boolean, // phải giống frontend
     @Req() req: any, // để lấy thông tin user từ JWT
   ) {
-    // Kiểm tra quyền: chỉ user chính chủ mới được chỉnh 2FA
     if (req.user.id !== id) {
       throw new ForbiddenException("Bạn không được phép chỉnh sửa 2FA của user khác");
     }
 
-    // Cập nhật DB và trả về giá trị mới
     return this.usersService.updateTwoFA(id, twoFactorEnabled);
   }
 }

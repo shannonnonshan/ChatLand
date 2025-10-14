@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Bell, Search, User } from "lucide-react";
 import SignInModal from "./(modal)/SignInModal";
 import SignUpModal from "./(modal)/SignUpModal";
+import SearchUserModal from "./(modal)/SearchUserModal"; // import modal search
 import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
@@ -12,21 +13,19 @@ export default function Topbar() {
   const { user, logout, token, setAuth } = useAuth();
   const [showSignIn, setShowSignIn] = useState(false);
   const [showSignUp, setShowSignUp] = useState(false);
+  const [showSearch, setShowSearch] = useState(false); // state modal search
   const [twoFAEnabled, setTwoFAEnabled] = useState(false);
-  const [loading2FA, setLoading2FA] = useState(false); // prevent double click
+  const [loading2FA, setLoading2FA] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const router = useRouter();
 
-  // Cập nhật state 2FA khi user thay đổi
   useEffect(() => {
     if (user) setTwoFAEnabled(user.twoFactorEnabled || false);
   }, [user]);
 
-  // Toggle 2FA
   const handleTwoFAToggle = async () => {
     if (!user || !token || loading2FA) return;
     setLoading2FA(true);
-
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
       const res = await fetch(`${apiUrl}/users/${user.id}/2fa`, {
@@ -37,11 +36,8 @@ export default function Topbar() {
         },
         body: JSON.stringify({ twoFactorEnabled: !twoFAEnabled }),
       });
-
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to update 2FA");
-
-      // Update state from backend response
       setTwoFAEnabled(data.twoFactorEnabled);
       setAuth({ ...user, twoFactorEnabled: data.twoFactorEnabled }, token);
     } catch (err) {
@@ -66,11 +62,18 @@ export default function Topbar() {
           <input
             type="text"
             placeholder="Search..."
-            className="pl-3 pr-8 py-1.5 rounded-md border border-gray-300 bg-gray-50 text-sm focus:outline-none focus:ring focus:ring-blue-300"
+            className="pl-3 pr-8 py-1.5 rounded-md border border-gray-300 bg-gray-50 text-sm focus:outline-none focus:ring focus:ring-blue-300 cursor-pointer"
+            readOnly
+            onFocus={() => {
+              if (!user) {
+                setShowSignIn(true); // chưa login → show sign-in
+              } else {
+                setShowSearch(true); // đã login → show search modal
+              }
+            }}
           />
           <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
         </div>
-
         {/* Notification */}
         <button
           onClick={() => router.push(`/announcements/${user?.id}`)}
@@ -104,7 +107,6 @@ export default function Topbar() {
                 <p className="text-gray-500 truncate max-w-[90%]">{user.email}</p>
               </div>
 
-              {/* 2FA toggle */}
               <div className="flex items-center justify-between px-4 py-2 border-t border-gray-100 dark:border-gray-700">
                 <span className="text-sm text-gray-700 dark:text-gray-300">2-Factor</span>
                 <button
@@ -155,6 +157,10 @@ export default function Topbar() {
             setShowSignIn(true);
           }}
         />
+      )}
+
+      {showSearch && user && (
+        <SearchUserModal onClose={() => setShowSearch(false)} />
       )}
     </header>
   );

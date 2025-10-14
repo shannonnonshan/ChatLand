@@ -229,9 +229,18 @@ export default function ProfilePage() {
               </div>
               <p className="text-gray-700 text-sm">{post.description}</p>
               {post.imageUrl && (
-                <div className="mt-2 w-full h-64 relative rounded overflow-hidden">
-                  <Image src={`${process.env.NEXT_PUBLIC_API_URL}${post.imageUrl}`} alt="Post image" fill className="object-cover rounded" />
-                </div>
+                  <div className="relative w-full h-64 rounded overflow-hidden">
+                      <Image
+                        src={
+                          post.imageUrl?.startsWith("http")
+                            ? post.imageUrl
+                            : `${process.env.NEXT_PUBLIC_API_URL}${post.imageUrl}`
+                        }
+                        alt="Post image"
+                        fill
+                        className="object-contain" 
+                      />
+                    </div>
               )}
             </div>
           ))}
